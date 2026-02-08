@@ -47,6 +47,8 @@ use forge_rsx::rsx;
 ### Examples:
 
 ```rust
+use forge_rsx::rsx;
+
 rsx!(btfy0, div { "No indentation" });
 rsx!(btfy2, div { "Indented with 2 spaces" });
 rsx!(btfy4, div { "Indented with 4 spaces" });
@@ -59,6 +61,8 @@ rsx!(btfy4, div { "Indented with 4 spaces" });
 ### Basic Tag with Content
 
 ```rust
+use forge_rsx::rsx;
+
 let greeting = rsx!(lined, span { "Hello, World!" });
 println!("{}", greeting);
 ```
@@ -66,6 +70,8 @@ println!("{}", greeting);
 ### Nested Tags
 
 ```rust
+use forge_rsx::rsx;
+
 let nested_html = rsx!(lined, div {
     header {
         span { "Navigation" }
@@ -80,6 +86,8 @@ println!("{}", nested_html);
 ### Attributes
 
 ```rust
+use forge_rsx::rsx;
+
 let button_html = rsx!(lined, button {
     class: "btn-primary",
     "data-toggle": "modal",
@@ -91,6 +99,8 @@ println!("{}", button_html);
 ### Loop Example
 
 ```rust
+use forge_rsx::rsx;
+
 let users = vec!["Ahmed", "Mohamed", "Montasir"];
 
 let list_html = rsx!(lined, ul {
@@ -105,76 +115,118 @@ println!("{}", list_html);
 
 ```rust
 use forge_rsx::{rsx, get_char};
+
 fn main() {
+    // 1. Component defined with 'lined' (minified single line)
     let apple = "🍎 Apple";
     let apple_component = rsx!(lined, span { {&apple} });
-    let fruits = vec!["🍇", "mango", "orange"];
-    let div = rsx!(btfy4, div { "..." 
-        {"<!--  How to use attributes with hyphens, like x-show in Alpine.js -->"}
-        span {
-            id: "my-id",
-            class: "my-class",
-            "x-show": "",
-            ":class": "p-4",
-            "..."
+
+    // 2. Full HTML Document using 'doctype_html' and 'btfy4'
+    let html_doc = rsx! {
+        btfy4,
+        doctype_html
+        html {
+            head {
+                meta { charset: "UTF-8" } // No comma needed here
+                meta { name: "viewport", content: "width=device-width, initial-scale=1.0" }
+                title { "Forge RSX Demo" }
+            }
+            body {
+                "x-data": "{ open: false }", ":class": "bg-white",
+                h1 { "Welcome to Forge RSX" }
+                br {}
+                div { 
+                    class: "container",
+                    "x-show": "open",
+                    "Alpine.js integration demo"
+                }
+                "id": "my-id", "style": "color: #4f4f4f; font-size: 2rem;" // No comma needed here
+            }
         }
-        "..."
-    });
+    };
+
+    // 3. Formatting Samples: Demonstrating 0 and 2-space indentation styles
     let span = rsx!(btfy0, span { "..." });
     let empty_p = rsx!(btfy2, p { });
     let p = rsx!(btfy2, p {"..."});
-    let section = rsx!(btfy4, section { div { ol { 
-        for fruit in &fruits => {
-            li {
-                span {
-                    {
-                        if fruit == &"🍇" {
-                            &format!("{} {}", fruit.to_string(), "Grapes")
 
-                        } else if fruit == &"mango" {
-                            &format!("{} {}", "🥭", fruit.to_lowercase())
-                        } else {
-                            &fruit.to_uppercase()
+    // 4. Complex section with 'for' loops and logic
+    let fruits = vec!["🍇", "mango", "orange"];
+    let section = rsx!(btfy4, section { 
+        div { 
+            ol { 
+                for fruit in &fruits => {
+                    li {
+                        span {
+                            {
+                                if fruit == &"🍇" {
+                                    &format!("{} {}", fruit.to_string(), "Grapes")
+                                } else if fruit == &"mango" {
+                                    &format!("{} {}", "🥭", fruit.to_lowercase())
+                                } else {
+                                    &fruit.to_uppercase()
+                                }
+                            }
                         }
                     }
                 }
-            }
-        }
-        li { 
-            {"<!-- How to join RSX component -->"}
-            {&apple_component.to_string()} 
-            {
-                if get_char(&apple, 1).to_string() == "🍎" {
-                    "🍎".to_string()
-                } else {
-                    apple_component.to_string()
+                li { 
+                    {"<!-- How to join RSX component -->"}
+                    {&apple_component.to_string()} 
+                    {
+                        if get_char(&apple, 1).to_string() == "🍎" {
+                            "🍎".to_string()
+                        } else {
+                            apple_component.to_string()
+                        }
+                    }
                 }
-            }
-        }
-    } } });
-    println!(
-        "{}\n\n{}\n\n{}\n\n{}\n\n{}", 
-        div, span, empty_p, p, section
-    );
-    // <div>
-    //     ...
-    //     <!--  How to use attributes with hyphens, like x-show in Alpine.js -->
-    //     <span id="my-id" class="my-class" x-show='' :class='p-4'>
-    //         ...
-    //     </span>
-    //     ...
-    // </div>
-    //
+            } 
+        } 
+    });
+
+    // 5. Printing all results
+    println!("--- FULL HTML DOCUMENT ---\n{}\n", html_doc);
+    println!("--- MINIFIED SPAN ---\n{}\n", span);
+    println!("--- EMPTY P ---\n{}\n", empty_p);
+    println!("--- P WITH CONTENT ---\n{}\n", p);
+    println!("--- FRUIT SECTION ---\n{}", section);
+
+    // --- FULL HTML DOCUMENT ---
+    // <!DOCTYPE html>
+    // <html>
+    //     <head>
+    //         <meta charset="UTF-8">
+    //         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    //         <title>
+    //             Forge RSX Demo
+    //         </title>
+    //     </head>
+    //     <body x-data='{ open: false }' :class='bg-white' id="my-id" style="color: #4f4f4f; font-size: 2rem;">
+    //         <h1>
+    //             Welcome to Forge RSX
+    //         </h1>
+    //         <br>
+    //         <div class="container" x-show='open'>
+    //             Alpine.js integration demo
+    //         </div>
+    //     </body>
+    // </html>
+
+    // --- MINIFIED SPAN ---
     // <span>
     // ...
     // </span>
-    //
+
+    // --- EMPTY P ---
     // <p></p>
-    //
+
+    // --- P WITH CONTENT ---
     // <p>
-    //   ...
+    // ...
     // </p>
-    //
+
+    // --- FRUIT SECTION ---
     // <section>
     //     <div>
     //         <ol>

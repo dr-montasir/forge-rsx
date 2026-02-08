@@ -102,6 +102,12 @@
 /// - `btfy4`: uses 4 spaces indentation
 #[macro_export]
 macro_rules! rsx {
+    ($style:ident, doctype_html $tag:ident { $($content:tt)* }) => {
+        format!(
+            "<!DOCTYPE html>\n{}", 
+            forge_rsx::rsx!($style, $tag { $($content)* })
+        )
+    };
     (lined, $tag:ident { $($content:tt)* }) => {
         forge_rsx::rsx_muncher!(0, 0, $tag, [], [], $($content)*)
     };
@@ -158,7 +164,7 @@ macro_rules! rsx {
 /// - Remaining patterns: inner tags, loops, expressions, etc.
 #[macro_export]
 macro_rules! rsx_muncher {
-    // 1. TERMINATION - Smart Quote & Prefix Handling
+    // 1. TERMINATION - Generates the final string
     ($m:expr, $d:expr, $tag:ident, [$($attrs:tt)*], [$($children:expr),*], ) => {{
         #[allow(unused_mut)]
         let mut attr_str = String::new();
@@ -167,9 +173,6 @@ macro_rules! rsx_muncher {
                 let key = k.trim_matches('"');
                 let val_str = format!("{}", v);
                 
-                // Logic: Use single quotes if:
-                // 1. Key starts with Alpine/HTMX symbols (: @ x- hx-)
-                // 2. Value contains double quotes or escaped double quotes
                 if key.starts_with(':') || key.starts_with('@') || key.starts_with("x-") || key.starts_with("hx-") || 
                    val_str.contains('"') || val_str.contains("\\\"") {
                     let clean_v = val_str.replace("\\\"", "\"");
@@ -190,21 +193,36 @@ macro_rules! rsx_muncher {
             inner_content.push_str(&format!("{}", $children));
         )*
 
-        if inner_content.is_empty() {
-            format!("{}<{}{}></{}>", indent, stringify!($tag), attr_str, stringify!($tag))
+        let tag_name = stringify!($tag);
+        let is_void = matches!(tag_name, "area" | "base" | "br" | "col" | "embed" | "hr" | "img" | "input" | "link" | "meta" | "source" | "track" | "wbr");
+
+        if is_void {
+            format!("{}<{}{}>", indent, tag_name, attr_str)
+        } else if inner_content.is_empty() {
+            format!("{}<{}{}></{}>", indent, tag_name, attr_str, tag_name)
         } else {
-            format!("{}<{}{}>{}{}{}{}</{}>", indent, stringify!($tag), attr_str, nl, inner_content, nl, indent, stringify!($tag))
+            format!("{}<{}{}>{}{}{}{}</{}>", indent, tag_name, attr_str, nl, inner_content, nl, indent, tag_name)
         }
     }};
 
-    // 2a. ATTRIBUTES (Identifier)
-    ($m:expr, $d:expr, $tag:ident, [$($attrs:tt)*], [$($children:expr),*], $attr_name:ident : $attr_value:expr, $($rest:tt)*) => {
+    // 2a. ATTRIBUTE with COMMA (Identifier key)
+    ($m:expr, $d:expr, $tag:ident, [$($attrs:tt)*], [$($children:expr),*], $attr_name:ident : $attr_value:expr, $($rest:tt)+) => {
         forge_rsx::rsx_muncher!($m, $d, $tag, [$($attrs)* (stringify!($attr_name), $attr_value)], [$($children),*], $($rest)*)
     };
 
-    // 2b. ATTRIBUTES (Literal)
-    ($m:expr, $d:expr, $tag:ident, [$($attrs:tt)*], [$($children:expr),*], $attr_name:literal : $attr_value:expr, $($rest:tt)*) => {
+    // 2b. ATTRIBUTE with COMMA (Literal key)
+    ($m:expr, $d:expr, $tag:ident, [$($attrs:tt)*], [$($children:expr),*], $attr_name:literal : $attr_value:expr, $($rest:tt)+) => {
         forge_rsx::rsx_muncher!($m, $d, $tag, [$($attrs)* (stringify!($attr_name), $attr_value)], [$($children),*], $($rest)*)
+    };
+
+    // 2c. TERMINAL ATTRIBUTE NO COMMA (Identifier key)
+    ($m:expr, $d:expr, $tag:ident, [$($attrs:tt)*], [$($children:expr),*], $attr_name:ident : $attr_value:expr) => {
+        forge_rsx::rsx_muncher!($m, $d, $tag, [$($attrs)* (stringify!($attr_name), $attr_value)], [$($children),*], )
+    };
+
+    // 2d. TERMINAL ATTRIBUTE NO COMMA (Literal key)
+    ($m:expr, $d:expr, $tag:ident, [$($attrs:tt)*], [$($children:expr),*], $attr_name:literal : $attr_value:expr) => {
+        forge_rsx::rsx_muncher!($m, $d, $tag, [$($attrs)* (stringify!($attr_name), $attr_value)], [$($children),*], )
     };
 
     // 3. NESTED TAGS
@@ -239,6 +257,8 @@ macro_rules! rsx_muncher {
         forge_rsx::rsx_muncher!($m, $d, $tag, [$($attrs)*], [$($children),*], $($rest)*)
     };
 }
+
+
 
 /// Parses attribute pattern into a key-value tuple, if applicable.
 ///
