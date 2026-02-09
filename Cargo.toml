@@ -1,6 +1,6 @@
 [package]
 name = "forge-rsx"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Montasir Mirghani <montasir@fluxor.one>"]
 edition = "2024"
 description = "A Rust macro library for declarative, JSX-like HTML generation. It allows you to write HTML structures with embedded logic, attributes, nested tags, loops, and more, directly in Rust code with a concise syntax."

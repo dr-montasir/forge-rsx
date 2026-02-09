@@ -169,16 +169,31 @@ macro_rules! rsx_muncher {
         #[allow(unused_mut)]
         let mut attr_str = String::new();
         $(
+            /// Iterates through collected attributes and formats them into a single HTML attribute string.
+            /// 
+            /// This block handles three specific scenarios:
+            /// a. **Boolean Attributes**: If value is `true`, renders only the key (e.g., `defer`). 
+            ///    If `false`, the attribute is omitted entirely.
+            /// b. **Special Frameworks**: Uses single quotes `'` if the key starts with `@`, `:`, `x-`, or `hx-` 
+            ///    (common in Alpine.js and htmx) to allow JSON-like strings inside.
+            /// c. **Standard Attributes**: Renders as `key="value"` using double quotes.
             if let Some((k, v)) = forge_rsx::parse_attr!($attrs) {
                 let key = k.trim_matches('"');
                 let val_str = format!("{}", v);
-                
-                if key.starts_with(':') || key.starts_with('@') || key.starts_with("x-") || key.starts_with("hx-") || 
-                   val_str.contains('"') || val_str.contains("\\\"") {
-                    let clean_v = val_str.replace("\\\"", "\"");
-                    attr_str.push_str(&format!(" {}='{}'", key, clean_v));
-                } else {
-                    attr_str.push_str(&format!(" {}=\"{}\"", key, val_str));
+                if val_str == "true" {
+                    // Handle Boolean: Renders standalone key (e.g., <script defer>)
+                    attr_str.push_str(&format!(" {}", key));
+                } else if val_str != "false" {
+                    // Skip if "false", otherwise determine quoting style
+                    if key.starts_with(':') || key.starts_with('@') || key.starts_with("x-") || key.starts_with("hx-") || 
+                       val_str.contains('"') || val_str.contains("\\\"") {
+                        // Use single quotes for expressions or strings containing double quotes
+                        let clean_v = val_str.replace("\\\"", "\"");
+                        attr_str.push_str(&format!(" {}='{}'", key, clean_v));
+                    } else {
+                        // Default: Standard double-quoted attribute
+                        attr_str.push_str(&format!(" {}=\"{}\"", key, val_str));
+                    }
                 }
             }
         )*

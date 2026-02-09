@@ -63,8 +63,13 @@ rsx!(btfy4, div { "Indented with 4 spaces" });
 ```rust
 use forge_rsx::rsx;
 
-let greeting = rsx!(lined, span { "Hello, World!" });
-println!("{}", greeting);
+// 1. First style: using parentheses => ()
+let greeting1 = rsx!(lined, span { "Hello, World!" });
+println!("{}", greeting1); // output: <span>Hello, World!</span>
+
+// 2. Second style: using braces => {}
+let greeting2 = rsx! { lined, span { "Hello, World!" } };
+println!("{}", greeting2); // output: <span>Hello, World!</span>
 ```
 
 ### Nested Tags
@@ -88,12 +93,32 @@ println!("{}", nested_html);
 ```rust
 use forge_rsx::rsx;
 
-let button_html = rsx!(lined, button {
-    class: "btn-primary",
-    "data-toggle": "modal",
-    "Click me!"
-});
-println!("{}", button_html);
+fn main () {
+    let button_html = rsx! { lined, 
+        button {
+            class: "btn-primary",
+            "data-toggle": "modal",
+            "Click me!"
+    	}
+    };
+    println!("{}", button_html);
+    // output:
+    // <button class="btn-primary" data-toggle="modal">Click me!</button>
+    
+    let is_loading = true;
+	let is_admin = false;
+
+	let script_html = rsx!(lined, 
+        script {
+             defer: true,
+             async: is_loading, // true
+             src: "https://example.com/app.js",
+             hidden: is_admin   // false (won't show up)
+         }
+    );
+    println!("{}", script_html);
+    // Output: <script defer async src="https://example.com/app.js"></script>
+}
 ```
 
 ### Loop Example
