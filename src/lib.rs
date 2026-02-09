@@ -96,12 +96,12 @@
 ///     //             Forge RSX Demo
 ///     //         </title>
 ///     //     </head>
-///     //     <body x-data='{ open: false }' :class='bg-white' id="my-id" style="color: #4f4f4f; font-size: 2rem;">
+///     //     <body x-data="{ open: false }" :class="bg-white" id="my-id" style="color: #4f4f4f; font-size: 2rem;">
 ///     //         <h1>
 ///     //             Welcome to Forge RSX
 ///     //         </h1>
 ///     //         <br>
-///     //         <div class="container" x-show='open'>
+///     //         <div class="container" x-show="open">
 ///     //             Alpine.js integration demo
 ///     //         </div>
 ///     //     </body>

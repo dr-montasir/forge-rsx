@@ -91,19 +91,31 @@ println!("{}", nested_html);
 ### Attributes
 
 ```rust
+// This example demonstrates:
+// 1. Attribute quoting: Forge-RSX uses double quotes. Use 
+//    single quotes inside JS/Alpine strings to maintain HTML validity.
+// 2. Boolean attributes: Attributes assigned `true` render as keys only. 
+//    Attributes assigned `false` are omitted.
+// 3. Formatting: The `lined` mode creates compact HTML without extra whitespace.
+
 use forge_rsx::rsx;
 
 fn main () {
     let button_html = rsx! { lined, 
         button {
             class: "btn-primary",
-            "data-toggle": "modal",
+            "data-toggle": "modal",  // Alpine.js
+            // ❌ INCORRECT: The "User" double quotes will terminate the attribute early.
+            "hx-on:click": r#"const name="User"; alert(`Hello, ${name}!`)"#, // HTMX: incorrect output
+            // ✅ CORRECT: Using single quotes 'User' keeps the attribute valid.
+            "hx-on:click": "const name='User'; alert(`Hello, ${name}!`)", // HTMX: correct output
+            // "hx-on:click": r#"const name='User'; alert(`Hello, ${name}!`)"# // HTMX: correct output
             "Click me!"
     	}
     };
     println!("{}", button_html);
     // output:
-    // <button class="btn-primary" data-toggle="modal">Click me!</button>
+    // <button class="btn-primary" data-toggle="modal" hx-on:click="const name="User"; alert(`Hello, ${name}!`)" hx-on:click="const name='User'; alert(`Hello, ${name}!`)">Click me!</button>
     
     let is_loading = true;
 	let is_admin = false;
@@ -134,6 +146,84 @@ let list_html = rsx!(lined, ul {
     }
 });
 println!("{}", list_html);
+```
+
+### Code Tag
+
+```rust
+use forge_rsx::rsx;
+
+fn main () {
+    // The raw data
+    let code_source = "fn main() {\n    println!(\"Hello\");\n}";
+
+    // The specific HTML structure for the code
+    let code_snippet = rsx!(lined,
+        pre {
+            code { 
+                {code_source}
+            }
+        }
+    );
+    
+    // The final container (lined)
+    let final_html_lined = rsx!(lined,
+        div {
+            {code_snippet}
+        }
+    );
+    println!("{}", final_html_lined);
+    
+    // (lined lined) output:
+    // <div><pre><code>fn main() {
+    //     println!("Hello");
+    // }</code></pre></div>
+    
+    // Browser result:
+    // fn main() {
+    //     println!("Hello");
+    // }
+
+    // The final container (btfy0)
+    let final_html_btfy0 = rsx!(btfy0,
+        div {
+            {code_snippet}
+        }
+    );
+    println!("{}", final_html_btfy0);
+    
+    // (lined btfy0) output:
+    // <div>
+    // <pre><code>fn main() {
+    //     println!("Hello");
+    // }</code></pre>
+    // </div>
+    
+    // Browser result:
+    // fn main() {
+    //     println!("Hello");
+    // }
+
+    // The final container (btfy4)
+    let final_html_btfy4 = rsx!(btfy4,
+        div {
+            {code_snippet}
+        }
+    );
+    println!("{}", final_html_btfy4);
+
+    // (lined btfy4) output:
+    // <div>
+    //     <pre><code>fn main() {
+    //     println!("Hello");
+    // }</code></pre>
+    // </div>
+
+    // Browser result:
+    // fn main() {
+    //     println!("Hello");
+    // }
+}
 ```
 
 ### Full Complex Example
@@ -227,12 +317,12 @@ fn main() {
     //             Forge RSX Demo
     //         </title>
     //     </head>
-    //     <body x-data='{ open: false }' :class='bg-white' id="my-id" style="color: #4f4f4f; font-size: 2rem;">
+    //     <body x-data="{ open: false }" :class="bg-white" id="my-id" style="color: #4f4f4f; font-size: 2rem;">
     //         <h1>
     //             Welcome to Forge RSX
     //         </h1>
     //         <br>
-    //         <div class="container" x-show='open'>
+    //         <div class="container" x-show="open">
     //             Alpine.js integration demo
     //         </div>
     //     </body>

@@ -55,7 +55,7 @@
 ///         div, span, empty_p, p, section
 ///     );
 ///     // Output:
-///     // <div>...<span id="my-id" class="my-class" x-show='' :class='p-4'>...</span>...</div>
+///     // <div>...<span id="my-id" class="my-class" x-show="" :class="p-4">...</span>...</div>
 ///     // 
 ///     // <span>
 ///     // ...
@@ -187,9 +187,8 @@ macro_rules! rsx_muncher {
                     // Skip if "false", otherwise determine quoting style
                     if key.starts_with(':') || key.starts_with('@') || key.starts_with("x-") || key.starts_with("hx-") || 
                        val_str.contains('"') || val_str.contains("\\\"") {
-                        // Use single quotes for expressions or strings containing double quotes
                         let clean_v = val_str.replace("\\\"", "\"");
-                        attr_str.push_str(&format!(" {}='{}'", key, clean_v));
+                        attr_str.push_str(&format!(" {}=\"{}\"", key, clean_v));
                     } else {
                         // Default: Standard double-quoted attribute
                         attr_str.push_str(&format!(" {}=\"{}\"", key, val_str));
@@ -272,8 +271,6 @@ macro_rules! rsx_muncher {
         forge_rsx::rsx_muncher!($m, $d, $tag, [$($attrs)*], [$($children),*], $($rest)*)
     };
 }
-
-
 
 /// Parses attribute pattern into a key-value tuple, if applicable.
 ///
