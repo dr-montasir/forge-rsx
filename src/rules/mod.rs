@@ -178,22 +178,9 @@ macro_rules! rsx_muncher {
             ///    (common in Alpine.js and htmx) to allow JSON-like strings inside.
             /// c. **Standard Attributes**: Renders as `key="value"` using double quotes.
             if let Some((k, v)) = forge_rsx::parse_attr!($attrs) {
-                let key = k.trim_matches('"');
-                let val_str = format!("{}", v);
-                if val_str == "true" {
-                    // Handle Boolean: Renders standalone key (e.g., <script defer>)
-                    attr_str.push_str(&format!(" {}", key));
-                } else if val_str != "false" {
-                    // Skip if "false", otherwise determine quoting style
-                    if key.starts_with(':') || key.starts_with('@') || key.starts_with("x-") || key.starts_with("hx-") || 
-                       val_str.contains('"') || val_str.contains("\\\"") {
-                        let clean_v = val_str.replace("\\\"", "\"");
-                        attr_str.push_str(&format!(" {}=\"{}\"", key, clean_v));
-                    } else {
-                        // Default: Standard double-quoted attribute
-                        attr_str.push_str(&format!(" {}=\"{}\"", key, val_str));
-                    }
-                }
+                // Delegate to helper: format_attribute
+                let formatted = forge_rsx::rules::format_attribute(k, &format!("{}", v));
+                attr_str.push_str(&formatted);
             }
         )*
 
@@ -291,4 +278,33 @@ macro_rules! rsx_muncher {
 macro_rules! parse_attr {
     ( ($key:expr, $val:expr) ) => { Some(($key, $val)) };
     ( $other:tt ) => { None };
+}
+
+/// Formats a single attribute pair into its HTML string representation.
+/// 
+/// Rules applied:
+/// 1. Boolean logic: `true` -> " key", `false` -> "" (omitted).
+/// 2. Special frameworks (@, :, x-, hx-): Uses double quotes but handles 
+///    internal escaping for JSON-like strings.
+/// 3. Default: Standard `key="value"` formatting.
+pub fn format_attribute(k: &str, v: &str) -> String {
+    let key = k.trim_matches('"');
+    let val_str = format!("{}", v);
+
+    // Case A: Boolean Attributes
+    if val_str == "true" { return format!(" {}", key); }
+    
+    // Case B: Omitted Attributes
+    if val_str == "false" { return String::new(); }
+
+    // Case C: Special Frameworks or value contains quotes
+    // (Alpine.js, htmx, or manual JSON strings)
+    if key.starts_with(':') || key.starts_with('@') || key.starts_with("x-") || key.starts_with("hx-") || val_str.contains('"') || val_str.contains("\\\"") 
+    {
+        let clean_v = val_str.replace("\\\"", "\"");
+        return format!(" {}=\"{}\"", key, clean_v);
+    }
+
+    // Case D: Standard Attribute
+    format!(" {}=\"{}\"", key, val_str)
 }
