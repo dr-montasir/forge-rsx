@@ -41,7 +41,7 @@
 /// 
 ///     // 3. Formatting Samples: Demonstrating 0 and 2-space indentation styles
 ///     let span = rsx!(btfy0, span { "..." });
-///     let empty_p = rsx!(btfy2, p { });
+///     let empty_p = rsx!(tabed, p { });
 ///     let p = rsx!(btfy2, p {"..."});
 /// 
 ///     // 4. Complex section with 'for' loops and logic

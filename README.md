@@ -43,6 +43,7 @@ use forge_rsx::rsx;
 - `btfy0`: uses 0 spaces (no indentation, minified output)
 - `btfy2`: Indentation with 2 spaces per level.
 - `btfy4`: Indentation with 4 spaces per level.
+- `tabed`: Indentation with 2 spaces per level. (tabed = btfy2)
 
 ### Examples:
 
@@ -51,6 +52,7 @@ use forge_rsx::rsx;
 
 rsx!(btfy0, div { "No indentation" });
 rsx!(btfy2, div { "Indented with 2 spaces" });
+rsx!(tabed, div { "Indented with 2 spaces" });
 rsx!(btfy4, div { "Indented with 4 spaces" });
 ```
 

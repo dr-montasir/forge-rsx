@@ -19,7 +19,7 @@
 ///        "..."
 ///     });
 ///     let span = rsx!(btfy0, span { "..." });
-///     let empty_p = rsx!(btfy2, p { });
+///     let empty_p = rsx!(tabed, p { });
 ///     let p = rsx!(btfy2, p {"..."});
 ///     let section = rsx!(btfy4, section { div { ol { 
 ///         for fruit in &fruits => {
@@ -100,6 +100,7 @@
 /// - `btfy0`: uses 0 spaces (no indentation, minified output)
 /// - `btfy2`: uses 2 spaces indentation
 /// - `btfy4`: uses 4 spaces indentation
+/// - `tabed`: uses 2 spaces indentation (tabed = btfy2)
 #[macro_export]
 macro_rules! rsx {
     ($style:ident, doctype_html $tag:ident { $($content:tt)* }) => {
@@ -119,6 +120,9 @@ macro_rules! rsx {
     };
     (btfy4, $tag:ident { $($content:tt)* }) => {
         forge_rsx::rsx_muncher!(4, 0, $tag, [], [], $($content)*)
+    };
+    (tabed, $tag:ident { $($content:tt)* }) => {
+        forge_rsx::rsx_muncher!(2, 0, $tag, [], [], $($content)*)
     };
 }
 
@@ -146,7 +150,7 @@ macro_rules! rsx {
 /// rsx_muncher!(0, 0, div, [], [], );
 ///
 /// // Tag with attributes
-/// rsx_muncher!(0, 0, a, [("href", "https://example.com")], [], );
+/// rsx_muncher!(0, 0, a, [("href", "https://crates.io")], [], );
 ///
 /// // Nested tags
 /// rsx_muncher!(0, 0, div, [], [], span { "Hello" } );
@@ -268,7 +272,7 @@ macro_rules! rsx_muncher {
 /// # Usage
 /// ```rust
 /// use forge_rsx::parse_attr;
-/// assert_eq!(parse_attr!( ("href", "https://example.com") ), Some( ("href", "https://example.com") ));
+/// assert_eq!(parse_attr!( ("href", "https://crates.io") ), Some( ("href", "https://crates.io") ));
 /// assert_eq!(parse_attr!( some_other_pattern ), None::<( &str, &str )>);
 /// ```
 ///
