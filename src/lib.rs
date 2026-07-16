@@ -54,11 +54,11 @@
 ///                         span {
 ///                             {
 ///                                 if fruit == &"🍇" {
-///                                     &format!("{} {}", fruit.to_string(), "Grapes")
+///                                     format!("{} {}", fruit.to_string(), "Grapes")
 ///                                 } else if fruit == &"mango" {
-///                                     &format!("{} {}", "🥭", fruit.to_lowercase())
+///                                     format!("{} {}", "🥭", fruit.to_lowercase())
 ///                                 } else {
-///                                     &fruit.to_uppercase()
+///                                     fruit.to_uppercase()
 ///                                 }
 ///                             }
 ///                         }
@@ -185,4 +185,143 @@ pub fn get_char(s: &str, index: usize) -> String {
         // Get the char at the position
         s.chars().nth(char_index).unwrap().to_string()
     }
+}
+
+/// Beautifies or minifies an HTML string slice based on the provided indentation configuration.
+///
+/// This utility normalizes unstructured HTML markup into a uniform layout by collapsing extra white spaces. 
+/// Processing relies on two structural modes depending on the `indent` value:
+///
+/// 1. **Beautification Mode (`indent >= 0`)**: Pads child markup layers using the designated space width.
+///    The `<html>` element is processed as a root wrapper, allowing tags like `<head>` and `<body>` to remain left-aligned.
+/// 2. **Minification Mode (`indent < 0`)**: Collapses the markup, discards formatting breaks, and returns a single-line string.
+///
+/// # Arguments
+///
+/// * `indent` - The indentation width pattern (`i8`). Positive integers set space width per depth level. Negative values drop layout margins entirely to trigger minification.
+/// * `html` - A raw, unstructured, or single-line HTML string slice to be parsed.
+///
+/// # Examples
+///
+/// ```rust
+/// use forge_rsx::btfy;
+///
+/// // 1. Beautify layout using 4 spaces
+/// let messy_input = "<html><head><meta charset=\"utf-8\"></head><body><h1>Hi</h1></body></html>";
+/// let beautified = btfy(4, messy_input);
+/// assert_eq!(beautified, "<html>\n<head>\n    <meta charset=\"utf-8\">\n</head>\n<body>\n    <h1>\n        Hi\n    </h1>\n</body>\n</html>");
+///
+/// // 2. Minify layout using a negative index
+/// let split_input = "<div>\n  <p>Hello World</p>\n</div>";
+/// let minified = btfy(-1, split_input);
+/// assert_eq!(minified, "<div><p>Hello World</p></div>");
+/// ```
+pub fn btfy(indent: i8, html: &str) -> String {
+    // STEP 1: Convert input into a clean, single-line string
+    let mut clean_html = String::new();
+    let mut last_char_was_space = false;
+
+    for c in html.chars() {
+        if c == '<' {
+            // Trim trailing spaces before tag initiation
+            clean_html = clean_html.trim_end().to_string();
+            clean_html.push(c);
+            last_char_was_space = false;
+        } else if c == '>' {
+            clean_html.push(c);
+            last_char_was_space = false;
+        } else if c.is_whitespace() {
+            // Condense sequential whitespace characters into a single space
+            if !last_char_was_space && !clean_html.is_empty() && !clean_html.ends_with('>') {
+                clean_html.push(' ');
+                last_char_was_space = true;
+            }
+        } else {
+            clean_html.push(c);
+            last_char_was_space = false;
+        }
+    }
+
+    // Minification triggers if indent is below 0; structural padding falls back to 0
+    let is_minified = indent < 0;
+    let actual_indent = indent.max(0) as usize; 
+
+    // STEP 2: Execute structural formatting loop
+    let mut result = String::new();
+    let mut depth: usize = 0; 
+    let mut i = 0;
+    let chars: Vec<char> = clean_html.chars().collect();
+    let indent_unit = " ".repeat(actual_indent);
+
+    let void_tags = ["meta", "link", "br", "img", "input", "hr"];
+    let ignored_tags = ["html"];
+
+    while i < chars.len() {
+        if chars[i] == '<' {
+            let is_closing = i + 1 < chars.len() && chars[i + 1] == '/';
+            let is_declaration = i + 1 < chars.len() && (chars[i + 1] == '!' || chars[i + 1] == '?');
+
+            let mut tag_end = i;
+            while tag_end < chars.len() && chars[tag_end] != '>' {
+                tag_end += 1;
+            }
+
+            let is_self_closing = tag_end > 0 && chars[tag_end - 1] == '/';
+            let tag: String = chars[i..=tag_end].iter().collect();
+
+            let tag_name = tag
+                .trim_start_matches('<')
+                .trim_start_matches('/')
+                .split_whitespace()
+                .next()
+                .unwrap_or("")
+                .trim_end_matches('>')
+                .trim_end_matches('/')
+                .to_lowercase();
+
+            let is_void = void_tags.contains(&tag_name.as_str());
+            let is_ignored = ignored_tags.contains(&tag_name.as_str());
+
+            if is_closing && !is_ignored {
+                depth = depth.saturating_sub(1);
+            }
+
+            // Append newline token only when minification is disabled
+            if !is_minified && !result.is_empty() && !result.ends_with('\n') {
+                result.push('\n');
+            }
+            
+            // Indentation strings resolve to empty slices during minification
+            result.push_str(&indent_unit.repeat(depth));
+            result.push_str(&tag);
+
+            if !is_closing && !is_self_closing && !is_declaration && !is_void && !is_ignored {
+                depth += 1;
+            }
+
+            i = tag_end + 1;
+        } else {
+            let mut text_end = i;
+            while text_end < chars.len() && chars[text_end] != '<' {
+                text_end += 1;
+            }
+
+            let text: String = chars[i..text_end].iter().collect();
+            let trimmed = text.trim();
+
+            if !trimmed.is_empty() {
+                // Append newline token only when minification is disabled
+                if !is_minified && !result.is_empty() && !result.ends_with('\n') {
+                    result.push('\n');
+                }
+                
+                result.push_str(&indent_unit.repeat(depth));
+                result.push_str(trimmed);
+            }
+
+            i = text_end;
+        }
+    }
+
+    result
 }

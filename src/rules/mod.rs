@@ -27,12 +27,12 @@
 ///                 span {
 ///                     {
 ///                         if fruit == &"🍇" {
-///                             &format!("{} {}", fruit.to_string(), "Grapes")
+///                             format!("{} {}", fruit.to_string(), "Grapes")
 /// 
 ///                         } else if fruit == &"mango" {
-///                             &format!("{} {}", "🥭", fruit.to_lowercase())
+///                             format!("{} {}", "🥭", fruit.to_lowercase())
 ///                         } else {
-///                             &fruit.to_uppercase()
+///                             fruit.to_uppercase()
 ///                         }
 ///                     }
 ///                 }

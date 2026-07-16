@@ -277,11 +277,11 @@ fn main() {
                         span {
                             {
                                 if fruit == &"🍇" {
-                                    &format!("{} {}", fruit.to_string(), "Grapes")
+                                    format!("{} {}", fruit.to_string(), "Grapes")
                                 } else if fruit == &"mango" {
-                                    &format!("{} {}", "🥭", fruit.to_lowercase())
+                                    format!("{} {}", "🥭", fruit.to_lowercase())
                                 } else {
-                                    &fruit.to_uppercase()
+                                    fruit.to_uppercase()
                                 }
                             }
                         }
@@ -371,6 +371,57 @@ fn main() {
     //     </div>
     // </section>
 }
+```
+
+## HTML Processing Utilities
+
+`forge-rsx` exposes a standalone, zero-dependency processing utility `btfy` to manipulate raw, unstructured, or dynamically generated HTML strings. It features dual-mode processing based on the signed width variable.
+
+### HTML Beautification & Minification (`btfy`)
+
+The `btfy` function normalizes raw string slices into configured structural layouts. It safely eliminates irregular spaces, avoids staircased wrapper elements, and respects non-closing HTML self-contained items.
+
+* **Beautification Mode (`indent >= 0`)**: Adds structural layout breaks and pads nested child elements with custom indent widths. The root `<html>` layer remains flat on the margin while child content layers indent proportionally.
+* **Minification Mode (`indent < 0`)**: Compresses documents by discarding all internal layout rules and newline characters to output a true single-line layout sequence.
+
+#### Signature
+```text
+pub fn btfy(indent: i8, html: &str) -> String
+```
+
+#### Examples
+
+##### 1. Structuring Messy Code (Beautification)
+Passing a positive width formats unstructured HTML string targets cleanly while skipping root depth progression on `<html>` block children:
+
+```rust
+use forge_rsx::btfy;
+
+let messy_stream = "<html><head><meta charset=\"utf-8\"></head><body><h1>Hi</h1></body></html>";
+
+let output_4_spaces = btfy(4, messy_stream);
+assert_eq!(
+    output_4_spaces,
+    "<html>\n<head>\n    <meta charset=\"utf-8\">\n</head>\n<body>\n    <h1>\n        Hi\n    </h1>\n</body>\n</html>"
+);
+```
+
+##### 2. Squashing Layout Gaps (Minification)
+Passing a negative numerical bound like `-1` forces full whitespace reduction into an optimized continuous string line:
+
+```rust
+use forge_rsx::btfy;
+
+let structured_input = r#"
+<div>
+    <p>
+        Hello World
+    </p>
+</div>
+"#;
+
+let compressed_output = btfy(-1, structured_input);
+assert_eq!(compressed_output, "<div><p>Hello World</p></div>");
 ```
 
 ---
