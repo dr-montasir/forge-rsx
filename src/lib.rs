@@ -187,6 +187,18 @@ pub fn get_char(s: &str, index: usize) -> String {
     }
 }
 
+pub fn format_code(input: &str) -> String {
+    let mut formatted_html = String::with_capacity(input.len() * 2);
+    for ch in input.chars() {
+        match ch {
+            ' ' => formatted_html.push_str("&nbsp;"),
+            '\n' => formatted_html.push_str("<br>\n"),
+            _ => formatted_html.push(ch),
+        }
+    }
+    formatted_html
+}
+
 /// Beautifies or minifies an HTML string slice based on the provided indentation configuration.
 ///
 /// This utility normalizes unstructured HTML markup into a uniform layout by collapsing extra white spaces. 

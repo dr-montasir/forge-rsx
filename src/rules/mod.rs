@@ -172,7 +172,7 @@ macro_rules! rsx_muncher {
     ($m:expr, $d:expr, code, [$($attrs:tt)*], [$($children:expr),*], $text:literal $($rest:tt)*) => {
         forge_rsx::rsx_muncher!(
             $m, $d, code, [$($attrs)*], 
-            [$($children,)* forge_rsx::rules::format_code($text)], 
+            [$($children,)* forge_rsx::format_code($text)], 
             $($rest)*
         )
     };
@@ -325,16 +325,4 @@ pub fn format_attribute(k: &str, v: &str) -> String {
 
     // Case D: Standard Attribute
     format!(" {}=\"{}\"", key, val_str)
-}
-
-pub fn format_code(input: &str) -> String {
-    let mut formatted_html = String::with_capacity(input.len() * 2);
-    for ch in input.chars() {
-        match ch {
-            ' ' => formatted_html.push_str("&nbsp;"),
-            '\n' => formatted_html.push_str("<br>\n"),
-            _ => formatted_html.push(ch),
-        }
-    }
-    formatted_html
 }
