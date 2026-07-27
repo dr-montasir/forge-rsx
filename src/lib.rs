@@ -220,18 +220,33 @@ pub fn btfy(indent: i8, html: &str) -> String {
     // STEP 1: Convert input into a clean, single-line string
     let mut clean_html = String::new();
     let mut last_char_was_space = false;
+    let mut inside_code = false;
+    let chars_input: Vec<char> = html.chars().collect();
+    let mut idx = 0;
 
-    for c in html.chars() {
+    while idx < chars_input.len() {
+        let c = chars_input[idx];
+        
+        // Track whether execution enters or exits a code block tag token sequence
         if c == '<' {
-            // Trim trailing spaces before tag initiation
-            clean_html = clean_html.trim_end().to_string();
+            if idx + 5 < chars_input.len() && chars_input[idx+1..idx+5] == ['c', 'o', 'd', 'e'] {
+                inside_code = true;
+            } else if idx + 6 < chars_input.len() && chars_input[idx+1..idx+6] == ['/', 'c', 'o', 'd', 'e'] {
+                inside_code = false;
+            }
+            
+            if !inside_code {
+                clean_html = clean_html.trim_end().to_string();
+            }
             clean_html.push(c);
             last_char_was_space = false;
         } else if c == '>' {
             clean_html.push(c);
             last_char_was_space = false;
+        } else if inside_code {
+            // Keep ALL raw content preserved inside code sections intact
+            clean_html.push(c);
         } else if c.is_whitespace() {
-            // Condense sequential whitespace characters into a single space
             if !last_char_was_space && !clean_html.is_empty() && !clean_html.ends_with('>') {
                 clean_html.push(' ');
                 last_char_was_space = true;
@@ -240,6 +255,7 @@ pub fn btfy(indent: i8, html: &str) -> String {
             clean_html.push(c);
             last_char_was_space = false;
         }
+        idx += 1;
     }
 
     // Minification triggers if indent is below 0; structural padding falls back to 0
@@ -254,7 +270,7 @@ pub fn btfy(indent: i8, html: &str) -> String {
     let indent_unit = " ".repeat(actual_indent);
 
     let void_tags = ["meta", "link", "br", "img", "input", "hr"];
-    let ignored_tags = ["html"];
+    let ignored_tags = ["html", "code"]; 
 
     while i < chars.len() {
         if chars[i] == '<' {
@@ -288,11 +304,15 @@ pub fn btfy(indent: i8, html: &str) -> String {
 
             // Append newline token only when minification is disabled
             if !is_minified && !result.is_empty() && !result.ends_with('\n') {
-                result.push('\n');
+                // Prevent creating empty lines right before a closing code block
+                if !is_closing || tag_name != "code" {
+                    result.push('\n');
+                }
             }
             
-            // Indentation strings resolve to empty slices during minification
-            result.push_str(&indent_unit.repeat(depth));
+            if !is_minified && (!is_closing || tag_name != "code") {
+                result.push_str(&indent_unit.repeat(depth));
+            }
             result.push_str(&tag);
 
             if !is_closing && !is_self_closing && !is_declaration && !is_void && !is_ignored {
@@ -307,16 +327,22 @@ pub fn btfy(indent: i8, html: &str) -> String {
             }
 
             let text: String = chars[i..text_end].iter().collect();
-            let trimmed = text.trim();
 
-            if !trimmed.is_empty() {
-                // Append newline token only when minification is disabled
-                if !is_minified && !result.is_empty() && !result.ends_with('\n') {
-                    result.push('\n');
+            // Check if this text block lives inside a <code> tag parent element context
+            let is_inside_code_text = result.ends_with("<code>") || (result.contains("<code>") && !result.contains("</code>"));
+
+            if is_inside_code_text {
+                // Append text identically without messing with code layout spacing elements
+                result.push_str(&text);
+            } else {
+                let trimmed = text.trim();
+                if !trimmed.is_empty() {
+                    if !is_minified && !result.is_empty() && !result.ends_with('\n') {
+                        result.push('\n');
+                    }
+                    result.push_str(&indent_unit.repeat(depth));
+                    result.push_str(trimmed);
                 }
-                
-                result.push_str(&indent_unit.repeat(depth));
-                result.push_str(trimmed);
             }
 
             i = text_end;

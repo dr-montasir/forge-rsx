@@ -168,6 +168,15 @@ macro_rules! rsx {
 /// - Remaining patterns: inner tags, loops, expressions, etc.
 #[macro_export]
 macro_rules! rsx_muncher {
+    // SPECIAL CASE: Intercept the code tag matching block cleanly
+    ($m:expr, $d:expr, code, [$($attrs:tt)*], [$($children:expr),*], $text:literal $($rest:tt)*) => {
+        forge_rsx::rsx_muncher!(
+            $m, $d, code, [$($attrs)*], 
+            [$($children,)* forge_rsx::rules::format_code($text)], 
+            $($rest)*
+        )
+    };
+
     // 1. TERMINATION - Generates the final string
     ($m:expr, $d:expr, $tag:ident, [$($attrs:tt)*], [$($children:expr),*], ) => {{
         #[allow(unused_mut)]
@@ -206,7 +215,12 @@ macro_rules! rsx_muncher {
         } else if inner_content.is_empty() {
             format!("{}<{}{}></{}>", indent, tag_name, attr_str, tag_name)
         } else {
-            format!("{}<{}{}>{}{}{}{}</{}>", indent, tag_name, attr_str, nl, inner_content, nl, indent, tag_name)
+            // Keep content clean inside <code> tags across all styles
+            if tag_name == "code" {
+                format!("{}<{}{}>{}</{}>", indent, tag_name, attr_str, inner_content, tag_name)
+            } else {
+                format!("{}<{}{}>{}{}{}{}</{}>", indent, tag_name, attr_str, nl, inner_content, nl, indent, tag_name)
+            }
         }
     }};
 
@@ -311,4 +325,16 @@ pub fn format_attribute(k: &str, v: &str) -> String {
 
     // Case D: Standard Attribute
     format!(" {}=\"{}\"", key, val_str)
+}
+
+pub fn format_code(input: &str) -> String {
+    let mut formatted_html = String::with_capacity(input.len() * 2);
+    for ch in input.chars() {
+        match ch {
+            ' ' => formatted_html.push_str("&nbsp;"),
+            '\n' => formatted_html.push_str("<br>\n"),
+            _ => formatted_html.push(ch),
+        }
+    }
+    formatted_html
 }
