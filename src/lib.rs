@@ -188,12 +188,22 @@ pub fn get_char(s: &str, index: usize) -> String {
 }
 
 /// Formats code blocks by escaping spaces to &nbsp; and newlines to <br>.
+/// It automatically trims single leading or trailing newlines to keep layout bounds clean.
 pub fn format_code(input: &str) -> String {
-    let mut formatted_html = String::with_capacity(input.len() * 2);
-    for ch in input.chars() {
+    // Trim initial and terminal raw line endings so empty literal wraps don't inject bad breaks
+    let mut working_str = input;
+    if working_str.starts_with('\n') {
+        working_str = &working_str[1..];
+    }
+    if working_str.ends_with('\n') {
+        working_str = &working_str[..working_str.len() - 1];
+    }
+
+    let mut formatted_html = String::with_capacity(working_str.len() * 2);
+    for ch in working_str.chars() {
         match ch {
             ' ' => formatted_html.push_str("&nbsp;"),
-            '\n' => formatted_html.push_str("<br>\n"),
+            '\n' => formatted_html.push_str("<br>"), // Removed the trailing \n to keep macro outputs clean!
             _ => formatted_html.push(ch),
         }
     }
@@ -239,17 +249,15 @@ pub fn btfy(indent: i8, html: &str) -> String {
     while idx < chars_input.len() {
         // Look ahead to check if an opening <code> tag is beginning
         if idx + 5 < chars_input.len() && chars_input[idx..idx+6] == ['<', 'c', 'o', 'd', 'e'] {
-            // Find the end of this opening tag token sequence (handles possible attributes)
             let mut tag_end = idx;
             while tag_end < chars_input.len() && chars_input[tag_end] != '>' {
                 tag_end += 1;
             }
             if tag_end < chars_input.len() {
-                tag_end += 1; // Include the '>' character
+                tag_end += 1;
             }
             
             clean_html = clean_html.trim_end().to_string();
-            // Append the raw opening code tag completely
             clean_html.push_str(&chars_input[idx..tag_end].iter().collect::<String>());
             
             // Raw Ingestion Mode: Grab everything byte-for-byte until literal final `</code>`
@@ -262,7 +270,6 @@ pub fn btfy(indent: i8, html: &str) -> String {
                 idx += 1;
             }
             
-            // Append the closing code tag explicitly
             if idx + 6 < chars_input.len() {
                 clean_html.push_str("</code>");
                 idx += 7;
@@ -291,9 +298,8 @@ pub fn btfy(indent: i8, html: &str) -> String {
         idx += 1;
     }
 
-    // Minification triggers if indent is below 0; structural padding falls back to 0
     let is_minified = indent < 0;
-    let actual_indent = indent.max(0) as usize;
+    let actual_indent = indent.max(0) as usize; 
 
     // STEP 2: Execute structural formatting loop
     let mut result = String::new();
@@ -323,7 +329,7 @@ pub fn btfy(indent: i8, html: &str) -> String {
                 }
                 result.push_str(&tag);
 
-                // Ingest the raw code inner content safely up to the closing `</code>` boundary
+                // Ingest raw code inner content up to closing `</code>` boundary without adding newlines or spaces!
                 let mut scan = tag_end + 1;
                 let mut inner_code_content = String::new();
                 while scan < chars.len() {
@@ -337,7 +343,7 @@ pub fn btfy(indent: i8, html: &str) -> String {
                 result.push_str(&inner_code_content);
                 result.push_str("</code>");
                 
-                i = scan + 7; // Advance main loop pointer completely past the closing tag block
+                i = scan + 7; 
                 continue;
             }
 
@@ -385,7 +391,7 @@ pub fn btfy(indent: i8, html: &str) -> String {
             i = tag_end + 1;
         } else {
             let mut text_end = i;
-            while text_end < chars.len() && text_end < chars.len() && chars[text_end] != '<' {
+            while text_end < chars.len() && chars[text_end] != '<' {
                 text_end += 1;
             }
 

@@ -200,24 +200,30 @@ macro_rules! rsx_muncher {
         let indent = match $m { 2 => "  ".repeat($d), 4 => "    ".repeat($d), _ => String::new() };
         let nl = if $m > 0 { "\n" } else { "" };
 
-        #[allow(unused_mut)]
-        let mut inner_content = String::new();
-        $(
-            if !inner_content.is_empty() { inner_content.push_str(nl); }
-            inner_content.push_str(&format!("{}", $children));
-        )*
-
         let tag_name = stringify!($tag);
         let is_void = matches!(tag_name, "area" | "base" | "br" | "col" | "embed" | "hr" | "img" | "input" | "link" | "meta" | "source" | "track" | "wbr");
 
-        if is_void {
-            format!("{}<{}{}>", indent, tag_name, attr_str)
-        } else if inner_content.is_empty() {
-            format!("{}<{}{}></{}>", indent, tag_name, attr_str, tag_name)
+        // SPECIAL RENDER BOUNDARY FOR CODE TAGS
+        if tag_name == "code" {
+            #[allow(unused_mut)]
+            let mut inner_content = String::new();
+            $(
+                // Join code children tightly without inserting any extra \n breaks
+                inner_content.push_str(&format!("{}", $children));
+            )*
+            format!("{}<{}{}>{}</{}>", indent, tag_name, attr_str, inner_content, tag_name)
         } else {
-            // Keep content clean inside <code> tags across all styles
-            if tag_name == "code" {
-                format!("{}<{}{}>{}</{}>", indent, tag_name, attr_str, inner_content, tag_name)
+            #[allow(unused_mut)]
+            let mut inner_content = String::new();
+            $(
+                if !inner_content.is_empty() { inner_content.push_str(nl); }
+                inner_content.push_str(&format!("{}", $children));
+            )*
+
+            if is_void {
+                format!("{}<{}{}>", indent, tag_name, attr_str)
+            } else if inner_content.is_empty() {
+                format!("{}<{}{}></{}>", indent, tag_name, attr_str, tag_name)
             } else {
                 format!("{}<{}{}>{}{}{}{}</{}>", indent, tag_name, attr_str, nl, inner_content, nl, indent, tag_name)
             }
