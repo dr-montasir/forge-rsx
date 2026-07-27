@@ -190,7 +190,6 @@ pub fn get_char(s: &str, index: usize) -> String {
 /// Formats code blocks by escaping spaces to &nbsp; and newlines to <br>.
 /// It automatically trims single leading or trailing newlines to keep layout bounds clean.
 pub fn format_code(input: &str) -> String {
-    // Trim initial and terminal raw line endings so empty literal wraps don't inject bad breaks
     let mut working_str = input;
     if working_str.starts_with('\n') {
         working_str = &working_str[1..];
@@ -203,7 +202,7 @@ pub fn format_code(input: &str) -> String {
     for ch in working_str.chars() {
         match ch {
             ' ' => formatted_html.push_str("&nbsp;"),
-            '\n' => formatted_html.push_str("<br>"), // Removed the trailing \n to keep macro outputs clean!
+            '\n' => formatted_html.push_str("<br>"), 
             _ => formatted_html.push(ch),
         }
     }
@@ -240,46 +239,29 @@ pub fn format_code(input: &str) -> String {
 /// assert_eq!(minified, "<div><p>Hello World</p></div>");
 /// ```
 pub fn btfy(indent: i8, html: &str) -> String {
-    // STEP 1: Convert input into a clean string, bypassing compression completely inside <code> blocks
+    // STEP 1: Linear, single-increment pass to clean HTML layout text safely
     let mut clean_html = String::new();
     let mut last_char_was_space = false;
+    let mut inside_code = false;
     let chars_input: Vec<char> = html.chars().collect();
     let mut idx = 0;
 
     while idx < chars_input.len() {
-        // Look ahead to check if an opening <code> tag is beginning
-        if idx + 5 < chars_input.len() && chars_input[idx..idx+6] == ['<', 'c', 'o', 'd', 'e'] {
-            let mut tag_end = idx;
-            while tag_end < chars_input.len() && chars_input[tag_end] != '>' {
-                tag_end += 1;
+        if chars_input[idx] == '<' {
+            if idx + 5 < chars_input.len() && chars_input[idx+1..idx+5] == ['c', 'o', 'd', 'e'] {
+                inside_code = true;
+                clean_html = clean_html.trim_end().to_string();
+            } else if idx + 6 < chars_input.len() && chars_input[idx+1..idx+6] == ['/', 'c', 'o', 'd', 'e'] {
+                inside_code = false;
             }
-            if tag_end < chars_input.len() {
-                tag_end += 1;
-            }
-            
-            clean_html = clean_html.trim_end().to_string();
-            clean_html.push_str(&chars_input[idx..tag_end].iter().collect::<String>());
-            
-            // Raw Ingestion Mode: Grab everything byte-for-byte until literal final `</code>`
-            idx = tag_end;
-            while idx < chars_input.len() {
-                if idx + 6 < chars_input.len() && chars_input[idx..idx+7] == ['<', '/', 'c', 'o', 'd', 'e', '>'] {
-                    break;
-                }
-                clean_html.push(chars_input[idx]);
-                idx += 1;
-            }
-            
-            if idx + 6 < chars_input.len() {
-                clean_html.push_str("</code>");
-                idx += 7;
-            }
-            last_char_was_space = false;
-            continue;
         }
 
         let c = chars_input[idx];
-        if c == '<' {
+        if inside_code {
+            // Keep everything inside code blocks exactly intact
+            clean_html.push(c);
+            last_char_was_space = false;
+        } else if c == '<' {
             clean_html = clean_html.trim_end().to_string();
             clean_html.push(c);
             last_char_was_space = false;
@@ -295,13 +277,13 @@ pub fn btfy(indent: i8, html: &str) -> String {
             clean_html.push(c);
             last_char_was_space = false;
         }
-        idx += 1;
+        idx += 1; // Always steps forward precisely once
     }
 
     let is_minified = indent < 0;
     let actual_indent = indent.max(0) as usize; 
 
-    // STEP 2: Execute structural formatting loop
+    // STEP 2: Structural layout formatting loop using flat state-tracking flags
     let mut result = String::new();
     let mut depth: usize = 0; 
     let mut i = 0;
@@ -310,43 +292,10 @@ pub fn btfy(indent: i8, html: &str) -> String {
 
     let void_tags = ["meta", "link", "br", "img", "input", "hr"];
     let ignored_tags = ["html", "code"]; 
+    let mut format_blind_code_mode = false;
 
     while i < chars.len() {
         if chars[i] == '<' {
-            // Check if we are opening a <code> tag block
-            if i + 5 < chars.len() && chars[i+1..i+5] == ['c', 'o', 'd', 'e'] {
-                let mut tag_end = i;
-                while tag_end < chars.len() && chars[tag_end] != '>' {
-                    tag_end += 1;
-                }
-                let tag: String = chars[i..=tag_end].iter().collect();
-
-                if !is_minified && !result.is_empty() && !result.ends_with('\n') {
-                    result.push('\n');
-                }
-                if !is_minified {
-                    result.push_str(&indent_unit.repeat(depth));
-                }
-                result.push_str(&tag);
-
-                // Ingest raw code inner content up to closing `</code>` boundary without adding newlines or spaces!
-                let mut scan = tag_end + 1;
-                let mut inner_code_content = String::new();
-                while scan < chars.len() {
-                    if scan + 6 < chars.len() && chars[scan..scan+7] == ['<', '/', 'c', 'o', 'd', 'e', '>'] {
-                        break;
-                    }
-                    inner_code_content.push(chars[scan]);
-                    scan += 1;
-                }
-
-                result.push_str(&inner_code_content);
-                result.push_str("</code>");
-                
-                i = scan + 7; 
-                continue;
-            }
-
             let is_closing = i + 1 < chars.len() && chars[i + 1] == '/';
             let is_declaration = i + 1 < chars.len() && (chars[i + 1] == '!' || chars[i + 1] == '?');
 
@@ -354,10 +303,13 @@ pub fn btfy(indent: i8, html: &str) -> String {
             while tag_end < chars.len() && chars[tag_end] != '>' {
                 tag_end += 1;
             }
+            if tag_end >= chars.len() {
+                // Safeguard against malformed closing patterns
+                result.push_str(&chars[i..].iter().collect::<String>());
+                break;
+            }
 
-            let is_self_closing = tag_end > 0 && chars[tag_end - 1] == '/';
             let tag: String = chars[i..=tag_end].iter().collect();
-
             let tag_name = tag
                 .trim_start_matches('<')
                 .trim_start_matches('/')
@@ -367,6 +319,34 @@ pub fn btfy(indent: i8, html: &str) -> String {
                 .trim_end_matches('>')
                 .trim_end_matches('/')
                 .to_lowercase();
+
+            // Track state transitions safely without nested loop blocks
+            if tag_name == "code" {
+                if !is_closing {
+                    format_blind_code_mode = true;
+                    if !is_minified && !result.is_empty() && !result.ends_with('\n') {
+                        result.push('\n');
+                    }
+                    if !is_minified {
+                        result.push_str(&indent_unit.repeat(depth));
+                    }
+                    result.push_str(&tag);
+                    i = tag_end + 1;
+                    continue;
+                } else {
+                    format_blind_code_mode = false;
+                    result.push_str(&tag);
+                    i = tag_end + 1;
+                    continue;
+                }
+            }
+
+            // Skip layout adjustments for inner contents of code elements
+            if format_blind_code_mode {
+                result.push_str(&tag);
+                i = tag_end + 1;
+                continue;
+            }
 
             let is_void = void_tags.contains(&tag_name.as_str());
             let is_ignored = ignored_tags.contains(&tag_name.as_str());
@@ -384,7 +364,7 @@ pub fn btfy(indent: i8, html: &str) -> String {
             }
             result.push_str(&tag);
 
-            if !is_closing && !is_self_closing && !is_declaration && !is_void && !is_ignored {
+            if !is_closing && !tag.ends_with("/>") && !is_declaration && !is_void && !is_ignored {
                 depth += 1;
             }
 
@@ -396,14 +376,18 @@ pub fn btfy(indent: i8, html: &str) -> String {
             }
 
             let text: String = chars[i..text_end].iter().collect();
-            let trimmed = text.trim();
 
-            if !trimmed.is_empty() {
-                if !is_minified && !result.is_empty() && !result.ends_with('\n') {
-                    result.push('\n');
+            if format_blind_code_mode {
+                result.push_str(&text);
+            } else {
+                let trimmed = text.trim();
+                if !trimmed.is_empty() {
+                    if !is_minified && !result.is_empty() && !result.ends_with('\n') {
+                        result.push('\n');
+                    }
+                    result.push_str(&indent_unit.repeat(depth));
+                    result.push_str(trimmed);
                 }
-                result.push_str(&indent_unit.repeat(depth));
-                result.push_str(trimmed);
             }
 
             i = text_end;

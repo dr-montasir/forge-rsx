@@ -208,8 +208,8 @@ macro_rules! rsx_muncher {
             #[allow(unused_mut)]
             let mut inner_content = String::new();
             $(
-                // Join code children tightly without inserting any extra \n breaks
-                inner_content.push_str(&format!("{}", $children));
+                // Apply format_code safely right as children strings are materialized
+                inner_content.push_str(&forge_rsx::format_code(&format!("{}", $children)));
             )*
             format!("{}<{}{}>{}</{}>", indent, tag_name, attr_str, inner_content, tag_name)
         } else {
