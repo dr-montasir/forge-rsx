@@ -187,211 +187,144 @@ pub fn get_char(s: &str, index: usize) -> String {
     }
 }
 
-/// Formats code blocks by escaping spaces to &nbsp; and newlines to <br>.
-/// It automatically trims single leading or trailing newlines to keep layout bounds clean.
-pub fn format_code(input: &str) -> String {
-    let mut working_str = input;
-    if working_str.starts_with('\n') {
-        working_str = &working_str[1..];
-    }
-    if working_str.ends_with('\n') {
-        working_str = &working_str[..working_str.len() - 1];
-    }
-
-    let mut formatted_html = String::with_capacity(working_str.len() * 2);
-    for ch in working_str.chars() {
-        match ch {
-            ' ' => formatted_html.push_str("&nbsp;"),
-            '\n' => formatted_html.push_str("<br>"), 
-            _ => formatted_html.push(ch),
-        }
-    }
-    formatted_html
-}
-
-/// Beautifies or minifies an HTML string slice based on the provided indentation configuration.
+/// Minifies an HTML string slice into a compressed, single-line format while preserving formatting inside specific blocks.
 ///
-/// This utility normalizes unstructured HTML markup into a uniform layout by collapsing extra white spaces. 
-/// Processing relies on two structural modes depending on the `indent` value:
+/// This utility optimizes raw HTML markup by stripping out unneeded newlines, tab characters, and 
+/// redundant white spaces, collapsing structural content down into a continuous line. 
 ///
-/// 1. **Beautification Mode (`indent >= 0`)**: Pads child markup layers using the designated space width.
-///    The `<html>` element is processed as a root wrapper, allowing tags like `<head>` and `<body>` to remain left-aligned.
-/// 2. **Minification Mode (`indent < 0`)**: Collapses the markup, discards formatting breaks, and returns a single-line string.
+/// The parsing engine tracks nested elements to ensure that all contents, text layouts, newlines, and 
+/// spaces residing inside `<pre>` and `<code>` tags are left completely untouched. 
 ///
 /// # Arguments
 ///
-/// * `indent` - The indentation width pattern (`i8`). Positive integers set space width per depth level. Negative values drop layout margins entirely to trigger minification.
-/// * `html` - A raw, unstructured, or single-line HTML string slice to be parsed.
+/// * `html` - A raw, multi-line, or unstructured HTML string slice to be parsed and compressed.
 ///
 /// # Examples
 ///
 /// ```rust
-/// use forge_rsx::btfy;
+/// use forge_rsx::minify;
 ///
-/// // 1. Beautify layout using 4 spaces
-/// let messy_input = "<html><head><meta charset=\"utf-8\"></head><body><h1>Hi</h1></body></html>";
-/// let beautified = btfy(4, messy_input);
-/// assert_eq!(beautified, "<html>\n<head>\n    <meta charset=\"utf-8\">\n</head>\n<body>\n    <h1>\n        Hi\n    </h1>\n</body>\n</html>");
+/// // 1. Compress a multi-line HTML block into a single line
+/// let raw_input = r####"
+///     <div>
+///         <h1>Hello World!</h1>
+///     </div>
+/// "####;
+/// let minified = minify(raw_input);
+/// assert_eq!(minified, "<div><h1>Hello World!</h1></div>");
 ///
-/// // 2. Minify layout using a negative index
-/// let split_input = "<div>\n  <p>Hello World</p>\n</div>";
-/// let minified = btfy(-1, split_input);
-/// assert_eq!(minified, "<div><p>Hello World</p></div>");
+/// // 2. Preserve precise formatting inside pre and code tag blocks
+/// let code_input = r####"
+///     <div>
+///         <div>
+/// <pre><code>fn main() {
+///     let mut app = WebIo::new();
+///     println!("WebIO running!");
+/// }</code></pre>
+///         </div>
+///     </div>
+/// "####;
+/// 
+/// let result = minify(code_input);
+/// assert_eq!(result, "<div><div><pre><code>fn main() {\n    let mut app = WebIo::new();\n    println!(\"WebIO running!\");\n}</code></pre></div></div>");
 /// ```
-pub fn btfy(indent: i8, html: &str) -> String {
-    // STEP 1: Linear, single-increment pass to clean HTML layout text safely
-    let mut clean_html = String::new();
-    let mut last_char_was_space = false;
-    let mut inside_code = false;
-    let chars_input: Vec<char> = html.chars().collect();
-    let mut idx = 0;
+pub fn minify(html: &str) -> String {
+    let mut result = String::with_capacity(html.len());
+    let mut chars = html.trim().chars().peekable();
+    
+    let mut in_pre_code: i32 = 0; 
+    let mut last_was_whitespace = false;
 
-    while idx < chars_input.len() {
-        if chars_input[idx] == '<' {
-            if idx + 5 < chars_input.len() && chars_input[idx+1..idx+5] == ['c', 'o', 'd', 'e'] {
-                inside_code = true;
-                clean_html = clean_html.trim_end().to_string();
-            } else if idx + 6 < chars_input.len() && chars_input[idx+1..idx+6] == ['/', 'c', 'o', 'd', 'e'] {
-                inside_code = false;
+    while let Some(c) = chars.next() {
+        // Handle HTML Tags properly
+        if c == '<' {
+            let mut tag_buffer = String::from("<");
+            let mut is_closing = false;
+
+            if chars.peek() == Some(&'/') {
+                is_closing = true;
+                tag_buffer.push(chars.next().unwrap());
             }
+
+            // Extract the full tag name safely
+            let mut tag_name = String::new();
+            while let Some(&next_c) = chars.peek() {
+                if next_c.is_alphabetic() {
+                    tag_name.push(chars.next().unwrap());
+                } else {
+                    break;
+                }
+            }
+            tag_buffer.push_str(&tag_name);
+            let tag_name_lower = tag_name.to_lowercase();
+            let is_target_tag = tag_name_lower == "pre" || tag_name_lower == "code";
+
+            // Consume everything until the tag completely closes '>'
+            while let Some(next_c) = chars.next() {
+                tag_buffer.push(next_c);
+                if next_c == '>' {
+                    break;
+                }
+            }
+
+            // Clean up trailing whitespace before ANY tag boundary if outside pre/code
+            if in_pre_code == 0 {
+                while result.ends_with(' ') {
+                    result.pop();
+                }
+            }
+
+            if is_target_tag {
+                if is_closing {
+                    in_pre_code = in_pre_code.saturating_sub(1);
+                } else {
+                    in_pre_code += 1;
+                }
+            }
+
+            result.push_str(&tag_buffer);
+            last_was_whitespace = false;
+            
+            // Clean up leading whitespace immediately following ANY tag outside pre/code
+            if in_pre_code == 0 {
+                while let Some(&next_c) = chars.peek() {
+                    if next_c.is_whitespace() {
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+            } else if is_target_tag {
+                // Clear initial code-block formatting boundaries
+                while let Some(&next_c) = chars.peek() {
+                    if next_c.is_whitespace() {
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+            }
+            continue;
         }
 
-        let c = chars_input[idx];
-        if inside_code {
-            // Keep everything inside code blocks exactly intact
-            clean_html.push(c);
-            last_char_was_space = false;
-        } else if c == '<' {
-            clean_html = clean_html.trim_end().to_string();
-            clean_html.push(c);
-            last_char_was_space = false;
-        } else if c == '>' {
-            clean_html.push(c);
-            last_char_was_space = false;
+        // Handle content inside / outside target tags
+        if in_pre_code > 0 {
+            result.push(c);
+            last_was_whitespace = false;
         } else if c.is_whitespace() {
-            if !last_char_was_space && !clean_html.is_empty() && !clean_html.ends_with('>') {
-                clean_html.push(' ');
-                last_char_was_space = true;
+            if !last_was_whitespace {
+                result.push(' ');
+                last_was_whitespace = true;
             }
         } else {
-            clean_html.push(c);
-            last_char_was_space = false;
+            result.push(c);
+            last_was_whitespace = false;
         }
-        idx += 1; // Always steps forward precisely once
     }
 
-    let is_minified = indent < 0;
-    let actual_indent = indent.max(0) as usize; 
-
-    // STEP 2: Structural layout formatting loop using flat state-tracking flags
-    let mut result = String::new();
-    let mut depth: usize = 0; 
-    let mut i = 0;
-    let chars: Vec<char> = clean_html.chars().collect();
-    let indent_unit = " ".repeat(actual_indent);
-
-    let void_tags = ["meta", "link", "br", "img", "input", "hr"];
-    let ignored_tags = ["html", "code"]; 
-    let mut format_blind_code_mode = false;
-
-    while i < chars.len() {
-        if chars[i] == '<' {
-            let is_closing = i + 1 < chars.len() && chars[i + 1] == '/';
-            let is_declaration = i + 1 < chars.len() && (chars[i + 1] == '!' || chars[i + 1] == '?');
-
-            let mut tag_end = i;
-            while tag_end < chars.len() && chars[tag_end] != '>' {
-                tag_end += 1;
-            }
-            if tag_end >= chars.len() {
-                // Safeguard against malformed closing patterns
-                result.push_str(&chars[i..].iter().collect::<String>());
-                break;
-            }
-
-            let tag: String = chars[i..=tag_end].iter().collect();
-            let tag_name = tag
-                .trim_start_matches('<')
-                .trim_start_matches('/')
-                .split_whitespace()
-                .next()
-                .unwrap_or("")
-                .trim_end_matches('>')
-                .trim_end_matches('/')
-                .to_lowercase();
-
-            // Track state transitions safely without nested loop blocks
-            if tag_name == "code" {
-                if !is_closing {
-                    format_blind_code_mode = true;
-                    if !is_minified && !result.is_empty() && !result.ends_with('\n') {
-                        result.push('\n');
-                    }
-                    if !is_minified {
-                        result.push_str(&indent_unit.repeat(depth));
-                    }
-                    result.push_str(&tag);
-                    i = tag_end + 1;
-                    continue;
-                } else {
-                    format_blind_code_mode = false;
-                    result.push_str(&tag);
-                    i = tag_end + 1;
-                    continue;
-                }
-            }
-
-            // Skip layout adjustments for inner contents of code elements
-            if format_blind_code_mode {
-                result.push_str(&tag);
-                i = tag_end + 1;
-                continue;
-            }
-
-            let is_void = void_tags.contains(&tag_name.as_str());
-            let is_ignored = ignored_tags.contains(&tag_name.as_str());
-
-            if is_closing && !is_ignored {
-                depth = depth.saturating_sub(1);
-            }
-
-            if !is_minified && !result.is_empty() && !result.ends_with('\n') {
-                result.push('\n');
-            }
-            
-            if !is_minified {
-                result.push_str(&indent_unit.repeat(depth));
-            }
-            result.push_str(&tag);
-
-            if !is_closing && !tag.ends_with("/>") && !is_declaration && !is_void && !is_ignored {
-                depth += 1;
-            }
-
-            i = tag_end + 1;
-        } else {
-            let mut text_end = i;
-            while text_end < chars.len() && chars[text_end] != '<' {
-                text_end += 1;
-            }
-
-            let text: String = chars[i..text_end].iter().collect();
-
-            if format_blind_code_mode {
-                result.push_str(&text);
-            } else {
-                let trimmed = text.trim();
-                if !trimmed.is_empty() {
-                    if !is_minified && !result.is_empty() && !result.ends_with('\n') {
-                        result.push('\n');
-                    }
-                    result.push_str(&indent_unit.repeat(depth));
-                    result.push_str(trimmed);
-                }
-            }
-
-            i = text_end;
-        }
+    // Strip terminal ending spaces
+    while result.ends_with(' ') {
+        result.pop();
     }
 
     result

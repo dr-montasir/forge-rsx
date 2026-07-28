@@ -375,53 +375,61 @@ fn main() {
 
 ## HTML Processing Utilities
 
-`forge-rsx` exposes a standalone, zero-dependency processing utility `btfy` to manipulate raw, unstructured, or dynamically generated HTML strings. It features dual-mode processing based on the signed width variable.
+`forge-rsx` exposes a standalone, zero-dependency processing utility `minify` to optimize raw, unstructured, or dynamically generated HTML strings into high-performance, single-line layouts.
 
-### HTML Beautification & Minification (`btfy`)
+### HTML Minification (`minify`)
 
-The `btfy` function normalizes raw string slices into configured structural layouts. It safely eliminates irregular spaces, avoids staircased wrapper elements, and respects non-closing HTML self-contained items.
+The `minify` function compresses raw string slices by dropping structural formatting rules, newlines, and loose layout spaces to ensure an optimized continuous string output. 
 
-* **Beautification Mode (`indent >= 0`)**: Adds structural layout breaks and pads nested child elements with custom indent widths. The root `<html>` layer remains flat on the margin while child content layers indent proportionally.
-* **Minification Mode (`indent < 0`)**: Compresses documents by discarding all internal layout rules and newline characters to output a true single-line layout sequence.
+The parsing engine relies on a smart state-tracking sequence that skips compression rules when encountering `<pre>` and `<code>` blocks. This guarantees that code structures, alignment, text spacing, and newlines wrapped inside targeted syntax elements remain perfectly intact and completely unaltered.
 
 #### Signature
+
 ```text
-pub fn btfy(indent: i8, html: &str) -> String
+pub fn minify(html: &str) -> String
 ```
 
 #### Examples
 
-##### 1. Structuring Messy Code (Beautification)
-Passing a positive width formats unstructured HTML string targets cleanly while skipping root depth progression on `<html>` block children:
+##### 1. Collapsing Layout Gaps (Minification)
+
+Passing an unstructured or formatted HTML string stream compresses all extra white spaces into a true single-line payload sequence:
 
 ```rust
-use forge_rsx::btfy;
+use forge_rsx::minify;
 
-let messy_stream = "<html><head><meta charset=\"utf-8\"></head><body><h1>Hi</h1></body></html>";
+let structured_input = r####"
+    <div>
+        <h1>Hello World!</h1>
+    </div>
+"####;
 
-let output_4_spaces = btfy(4, messy_stream);
-assert_eq!(
-    output_4_spaces,
-    "<html>\n<head>\n    <meta charset=\"utf-8\">\n</head>\n<body>\n    <h1>\n        Hi\n    </h1>\n</body>\n</html>"
-);
+let compressed_output = minify(structured_input);
+assert_eq!(compressed_output, "<div><h1>Hello World!</h1></div>");
 ```
 
-##### 2. Squashing Layout Gaps (Minification)
-Passing a negative numerical bound like `-1` forces full whitespace reduction into an optimized continuous string line:
+##### 2. Preserving Formatted Syntax Blocks
+
+The utility automatically detects nested code structures and leaves structural text layouts inside `<pre>` and `<code>` blocks fully untouched:
 
 ```rust
-use forge_rsx::btfy;
+use forge_rsx::minify;
 
-let structured_input = r#"
-<div>
-    <p>
-        Hello World
-    </p>
-</div>
-"#;
+let raw_stream = r####"<div>
+    <div>
+<pre><code>fn main() {
+    let mut app = WebIo::new();
+    println!("WebIO running!");
+}</code></pre>
+    </div>
+</div>"####;
 
-let compressed_output = btfy(-1, structured_input);
-assert_eq!(compressed_output, "<div><p>Hello World</p></div>");
+let optimized_output = minify(raw_stream);
+
+assert_eq!(
+    optimized_output,
+    "<div><div><pre><code>fn main() {\n    let mut app = WebIo::new();\n    println!(\"WebIO running!\");\n}</code></pre></div></div>"
+);
 ```
 
 ---

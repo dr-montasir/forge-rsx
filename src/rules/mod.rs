@@ -168,15 +168,6 @@ macro_rules! rsx {
 /// - Remaining patterns: inner tags, loops, expressions, etc.
 #[macro_export]
 macro_rules! rsx_muncher {
-    // SPECIAL CASE: Intercept the code tag matching block cleanly
-    ($m:expr, $d:expr, code, [$($attrs:tt)*], [$($children:expr),*], $text:literal $($rest:tt)*) => {
-        forge_rsx::rsx_muncher!(
-            $m, $d, code, [$($attrs)*], 
-            [$($children,)* forge_rsx::format_code($text)], 
-            $($rest)*
-        )
-    };
-
     // 1. TERMINATION - Generates the final string
     ($m:expr, $d:expr, $tag:ident, [$($attrs:tt)*], [$($children:expr),*], ) => {{
         #[allow(unused_mut)]
@@ -200,33 +191,22 @@ macro_rules! rsx_muncher {
         let indent = match $m { 2 => "  ".repeat($d), 4 => "    ".repeat($d), _ => String::new() };
         let nl = if $m > 0 { "\n" } else { "" };
 
+        #[allow(unused_mut)]
+        let mut inner_content = String::new();
+        $(
+            if !inner_content.is_empty() { inner_content.push_str(nl); }
+            inner_content.push_str(&format!("{}", $children));
+        )*
+
         let tag_name = stringify!($tag);
         let is_void = matches!(tag_name, "area" | "base" | "br" | "col" | "embed" | "hr" | "img" | "input" | "link" | "meta" | "source" | "track" | "wbr");
 
-        // SPECIAL RENDER BOUNDARY FOR CODE TAGS
-        if tag_name == "code" {
-            #[allow(unused_mut)]
-            let mut inner_content = String::new();
-            $(
-                // Apply format_code safely right as children strings are materialized
-                inner_content.push_str(&forge_rsx::format_code(&format!("{}", $children)));
-            )*
-            format!("{}<{}{}>{}</{}>", indent, tag_name, attr_str, inner_content, tag_name)
+        if is_void {
+            format!("{}<{}{}>", indent, tag_name, attr_str)
+        } else if inner_content.is_empty() {
+            format!("{}<{}{}></{}>", indent, tag_name, attr_str, tag_name)
         } else {
-            #[allow(unused_mut)]
-            let mut inner_content = String::new();
-            $(
-                if !inner_content.is_empty() { inner_content.push_str(nl); }
-                inner_content.push_str(&format!("{}", $children));
-            )*
-
-            if is_void {
-                format!("{}<{}{}>", indent, tag_name, attr_str)
-            } else if inner_content.is_empty() {
-                format!("{}<{}{}></{}>", indent, tag_name, attr_str, tag_name)
-            } else {
-                format!("{}<{}{}>{}{}{}{}</{}>", indent, tag_name, attr_str, nl, inner_content, nl, indent, tag_name)
-            }
+            format!("{}<{}{}>{}{}{}{}</{}>", indent, tag_name, attr_str, nl, inner_content, nl, indent, tag_name)
         }
     }};
 
