@@ -405,10 +405,28 @@ let structured_input = r####"
 "####;
 
 let compressed_output = minify(structured_input);
-assert_eq!(compressed_output, "<div><h1>Hello World!</h1></div>");
+assert_eq!(compressed_output, "<div> <h1>Hello World!</h1> </div>");
 ```
 
-##### 2. Preserving Formatted Syntax Blocks
+##### 2. Compress a multi-line HTML block into a single line while keeping inline spaces
+
+```rust
+use forge_rsx::minify;
+
+let raw_input = r####"
+    <div>
+        <div>
+            <span>copyright 2026</span>
+            <a href="/">https://crates.io/crates/forge-rsx</a>
+        </div>
+    </div>
+"####;
+
+let minified = minify(raw_input);
+assert_eq!(minified, r#"<div> <div><span>copyright 2026</span> <a href="/">https://crates.io/crates/forge-rsx</a> </div></div>"#);
+```
+
+##### 3. Preserving Formatted Syntax Blocks
 
 The utility automatically detects nested code structures and leaves structural text layouts inside `<pre>` and `<code>` blocks fully untouched:
 
@@ -424,11 +442,11 @@ let raw_stream = r####"<div>
     </div>
 </div>"####;
 
-let optimized_output = minify(raw_stream);
+let result = minify(raw_stream);
 
 assert_eq!(
-    optimized_output,
-    "<div><div><pre><code>fn main() {\n    let mut app = WebIo::new();\n    println!(\"WebIO running!\");\n}</code></pre></div></div>"
+    result,
+    "<div> <div><pre><code>fn main() {\n    let mut app = WebIo::new();\n    println!(\"WebIO running!\");\n}</code></pre> </div></div>"
 );
 ```
 

@@ -211,9 +211,21 @@ pub fn get_char(s: &str, index: usize) -> String {
 ///     </div>
 /// "####;
 /// let minified = minify(raw_input);
-/// assert_eq!(minified, "<div><h1>Hello World!</h1></div>");
+/// assert_eq!(minified, "<div> <h1>Hello World!</h1> </div>");
 ///
-/// // 2. Preserve precise formatting inside pre and code tag blocks
+/// // 2. Compress a multi-line HTML block into a single line while keeping inline spaces
+/// let raw_input = r####"
+///     <div>
+///         <div>
+///             <span>copyright 2026</span>
+///             <a href="/">https://crates.io/crates/forge-rsx</a>
+///         </div>
+///     </div>
+/// "####;
+/// let minified = minify(raw_input);
+/// assert_eq!(minified, r#"<div> <div><span>copyright 2026</span> <a href="/">https://crates.io/crates/forge-rsx</a> </div></div>"#);
+///
+/// // 3. Preserve precise formatting inside pre and code tag blocks
 /// let code_input = r####"
 ///     <div>
 ///         <div>
@@ -226,7 +238,7 @@ pub fn get_char(s: &str, index: usize) -> String {
 /// "####;
 /// 
 /// let result = minify(code_input);
-/// assert_eq!(result, "<div><div><pre><code>fn main() {\n    let mut app = WebIo::new();\n    println!(\"WebIO running!\");\n}</code></pre></div></div>");
+/// assert_eq!(result, "<div> <div><pre><code>fn main() {\n    let mut app = WebIo::new();\n    println!(\"WebIO running!\");\n}</code></pre> </div></div>");
 /// ```
 pub fn minify(html: &str) -> String {
     let mut result = String::with_capacity(html.len());
@@ -267,13 +279,8 @@ pub fn minify(html: &str) -> String {
                 }
             }
 
-            // Clean up trailing whitespace before ANY tag boundary if outside pre/code
-            if in_pre_code == 0 {
-                while result.ends_with(' ') {
-                    result.pop();
-                }
-            }
-
+            // Track nesting levels of formatting-sensitive blocks (<pre> and <code>)
+            // to dynamically toggle layout whitespace preservation mode.
             if is_target_tag {
                 if is_closing {
                     in_pre_code = in_pre_code.saturating_sub(1);
@@ -282,20 +289,11 @@ pub fn minify(html: &str) -> String {
                 }
             }
 
+            // Append the fully processed HTML tag string to the final result buffer.
             result.push_str(&tag_buffer);
-            last_was_whitespace = false;
             
-            // Clean up leading whitespace immediately following ANY tag outside pre/code
-            if in_pre_code == 0 {
-                while let Some(&next_c) = chars.peek() {
-                    if next_c.is_whitespace() {
-                        chars.next();
-                    } else {
-                        break;
-                    }
-                }
-            } else if is_target_tag {
-                // Clear initial code-block formatting boundaries
+            // Clear formatting layout boundaries inside fresh <pre> or <code> blocks.
+            if is_target_tag && in_pre_code > 0 {
                 while let Some(&next_c) = chars.peek() {
                     if next_c.is_whitespace() {
                         chars.next();
