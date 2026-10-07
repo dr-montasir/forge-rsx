@@ -244,12 +244,137 @@ pub fn minify(html: &str) -> String {
     let mut result = String::with_capacity(html.len());
     let mut chars = html.trim().chars().peekable();
     
-    let mut in_pre_code: i32 = 0; 
+    // Strict structural tracking states for outer template boxes
+    let mut in_pre = false;
+    let mut in_code = false;
+    
     let mut last_was_whitespace = false;
+    let mut in_script = false;
+    let mut in_style = false;
+    let mut in_block_comment = false;
 
     while let Some(c) = chars.next() {
-        // Handle HTML Tags properly
+        let in_pre_code = in_pre && in_code;
+
+        // Handle Block Comments inside script/style blocks
+        if (in_script || in_style) && in_block_comment {
+            if c == '*' && chars.peek() == Some(&'/') {
+                chars.next(); // Consume '/'
+                in_block_comment = false;
+            }
+            continue;
+        }
+
+        // Initialize Block Comments inside script/style blocks
+        if (in_script || in_style) && c == '/' && chars.peek() == Some(&'*') {
+            chars.next(); // Consume '*'
+            in_block_comment = true;
+            continue;
+        }
+
+        // Handle JavaScript single-line comments
+        if in_script && c == '/' && chars.peek() == Some(&'/') {
+            chars.next(); // Consume second '/'
+            while let Some(next_c) = chars.next() {
+                if next_c == '\n' || next_c == '\r' {
+                    break;
+                }
+            }
+            if !result.ends_with(' ') {
+                result.push(' ');
+            }
+            last_was_whitespace = true;
+            continue;
+        }
+
+        // Verify genuine HTML Tag Boundaries
+        let mut is_real_html_tag = false;
+        
         if c == '<' {
+            if in_script || in_style {
+                if chars.peek() == Some(&'/') {
+                    is_real_html_tag = true;
+                }
+            } else if in_pre_code {
+                // Inside the code container, the ONLY tag allowed to break out 
+                // is the explicit closing container template layout sequence "</code></pre>"
+                if chars.peek() == Some(&'/') {
+                    let mut lookahead = chars.clone();
+                    lookahead.next(); // Skip '/'
+                    
+                    let mut tag_name = String::new();
+                    while let Some(nc) = lookahead.next() {
+                        if nc.is_alphabetic() {
+                            tag_name.push(nc);
+                        } else {
+                            if nc == '>' {
+                                break;
+                            }
+                            tag_name.clear();
+                            break;
+                        }
+                    }
+
+                    if tag_name.to_lowercase() == "code" {
+                        // Skip any optional layout whitespace tokens safely between tags
+                        while let Some(&nc) = lookahead.peek() {
+                            if nc.is_whitespace() {
+                                lookahead.next();
+                            } else {
+                                break;
+                            }
+                        }
+                        
+                        // Check if the next matching element block is strictly "</pre>"
+                        if lookahead.next() == Some('<') && lookahead.next() == Some('/') {
+                            let mut next_tag = String::new();
+                            while let Some(nc) = lookahead.next() {
+                                if nc.is_alphabetic() {
+                                    next_tag.push(nc);
+                                } else if nc == '>' {
+                                    break;
+                                } else {
+                                    next_tag.clear();
+                                    break;
+                                }
+                            }
+                            if next_tag.to_lowercase() == "pre" {
+                                is_real_html_tag = true;
+                            }
+                        }
+                    }
+                }
+            } else {
+                is_real_html_tag = true;
+            }
+        }
+
+        // Handle HTML Tags properly
+        if is_real_html_tag {
+            // Detect and completely strip HTML comments (<!-- comment -->) only outside pre/code
+            if !in_pre_code && chars.peek() == Some(&'!') {
+                let mut lookahead = chars.clone();
+                lookahead.next(); // skip '!'
+                if lookahead.next() == Some('-') && lookahead.next() == Some('-') {
+                    chars.next(); // '!'
+                    chars.next(); // '-'
+                    chars.next(); // '-'
+                    
+                    while let Some(comment_c) = chars.next() {
+                        if comment_c == '-' && chars.peek() == Some(&'-') {
+                            let mut end_check = chars.clone();
+                            end_check.next(); // skip second '-'
+                            if end_check.next() == Some('>') {
+                                chars.next(); // consume second '-'
+                                chars.next(); // consume '>'
+                                break;
+                            }
+                        }
+                    }
+                    continue;
+                }
+            }
+
             let mut tag_buffer = String::from("<");
             let mut is_closing = false;
 
@@ -269,7 +394,11 @@ pub fn minify(html: &str) -> String {
             }
             tag_buffer.push_str(&tag_name);
             let tag_name_lower = tag_name.to_lowercase();
-            let is_target_tag = tag_name_lower == "pre" || tag_name_lower == "code";
+
+            let is_pre_tag = tag_name_lower == "pre";
+            let is_code_tag = tag_name_lower == "code";
+            let is_script_tag = tag_name_lower == "script";
+            let is_style_tag = tag_name_lower == "style";
 
             // Consume everything until the tag completely closes '>'
             while let Some(next_c) = chars.next() {
@@ -279,21 +408,25 @@ pub fn minify(html: &str) -> String {
                 }
             }
 
-            // Track nesting levels of formatting-sensitive blocks (<pre> and <code>)
-            // to dynamically toggle layout whitespace preservation mode.
-            if is_target_tag {
-                if is_closing {
-                    in_pre_code = in_pre_code.saturating_sub(1);
-                } else {
-                    in_pre_code += 1;
+            // Maintain state container boundaries securely
+            if is_pre_tag {
+                in_pre = !is_closing;
+            } else if is_code_tag {
+                in_code = !is_closing;
+            }
+
+            // Toggle script/style state context based on opening or closing tags
+            if !(in_pre && in_code) {
+                if is_script_tag {
+                    in_script = !is_closing;
+                } else if is_style_tag {
+                    in_style = !is_closing;
                 }
             }
 
-            // Append the fully processed HTML tag string to the final result buffer.
             result.push_str(&tag_buffer);
             
-            // Clear formatting layout boundaries inside fresh <pre> or <code> blocks.
-            if is_target_tag && in_pre_code > 0 {
+            if (is_pre_tag || is_code_tag) && (in_pre && in_code) {
                 while let Some(&next_c) = chars.peek() {
                     if next_c.is_whitespace() {
                         chars.next();
@@ -306,9 +439,49 @@ pub fn minify(html: &str) -> String {
         }
 
         // Handle content inside / outside target tags
-        if in_pre_code > 0 {
-            result.push(c);
+        if in_pre && in_code {
+            if c == '<' {
+                result.push_str("&lt;");
+            } else if c == '>' {
+                result.push_str("&gt;");
+            } else if c == '&' {
+                result.push_str("&amp;");
+            } else {
+                result.push(c);
+            }
             last_was_whitespace = false;
+        } else if in_script || in_style {
+            if c.is_whitespace() {
+                if !last_was_whitespace {
+                    let syntax_symbols = if in_script { "{}:;(),=+-><!&|" } else { "{}:;(),>+" };
+                    let prev_is_symbol = result.chars().last().map_or(false, |p| syntax_symbols.contains(p));
+                    
+                    let mut lookahead_chars = chars.clone();
+                    let mut next_non_space = None;
+                    while let Some(nc) = lookahead_chars.next() {
+                        if !nc.is_whitespace() {
+                            next_non_space = Some(nc);
+                            break;
+                        }
+                    }
+                    let next_is_symbol = next_non_space.map_or(false, |n| syntax_symbols.contains(n));
+
+                    if !prev_is_symbol && !next_is_symbol && !result.is_empty() {
+                        result.push(' ');
+                    }
+                    last_was_whitespace = true;
+                }
+            } else {
+                let syntax_symbols = if in_script { "{}:;(),=+-><!&|" } else { "{}:;(),>+" };
+                let current_is_symbol = syntax_symbols.contains(c);
+
+                if current_is_symbol && result.ends_with(' ') {
+                    result.pop();
+                }
+
+                result.push(c);
+                last_was_whitespace = false;
+            }
         } else if c.is_whitespace() {
             if !last_was_whitespace {
                 result.push(' ');
