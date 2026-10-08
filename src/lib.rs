@@ -241,13 +241,63 @@ pub fn get_char(s: &str, index: usize) -> String {
 /// assert_eq!(result, "<div> <div><pre><code>fn main() {\n    let mut app = WebIo::new();\n    println!(\"WebIO running!\");\n}</code></pre> </div></div>");
 /// ```
 pub fn minify(html: &str) -> String {
+    minify_impl(html, false)
+}
+
+/// Minifies an HTML string slice into a compact, single-line format while preserving
+/// HTML comments.
+///
+/// Removes unnecessary newlines, tabs, and redundant whitespace between elements.
+/// Whitespace inside `<pre>` and `<code>` blocks is preserved. Unlike [`minify`],
+/// this function retains HTML comments.
+///
+/// # Arguments
+///
+/// * `html` - The HTML string to minify.
+///
+/// # Example
+///
+/// ```rust
+/// use forge_rsx::minify_with_comments;
+///
+/// let raw = r####"
+///     <div>
+///         <!-- Site name -->
+///         <span>copyright 2026</span>
+///         <a href="/">mysite.com</a>
+///     </div>
+/// "####;
+///
+/// let result = minify_with_comments(raw);
+///
+/// assert_eq!(
+///     result,
+///     r#"<div> <!-- Site name --><span>copyright 2026</span> <a href="/">mysite.com</a> </div>"#
+/// );
+/// ```
+pub fn minify_with_comments(html: &str) -> String {
+    minify_impl(html, true)
+}
+
+/// Minifies an HTML string, optionally preserving HTML comments.
+///
+/// Trims leading and trailing whitespace and removes redundant whitespace from
+/// the markup. Whitespace within `<pre><code>...</code></pre>` content is
+/// preserved, while script and style content is compacted with whitespace
+/// retained where needed to separate tokens. HTML comments are removed unless
+/// `keep_comments` is `true`.
+///
+/// # Arguments
+///
+/// * `html` - The HTML string to minify.
+/// * `keep_comments` - Whether to retain HTML comments.
+fn minify_impl(html: &str, keep_comments: bool) -> String {
     let mut result = String::with_capacity(html.len());
     let mut chars = html.trim().chars().peekable();
-    
-    // Strict structural tracking states for outer template boxes
+
     let mut in_pre = false;
     let mut in_code = false;
-    
+
     let mut last_was_whitespace = false;
     let mut in_script = false;
     let mut in_style = false;
@@ -256,25 +306,22 @@ pub fn minify(html: &str) -> String {
     while let Some(c) = chars.next() {
         let in_pre_code = in_pre && in_code;
 
-        // Handle Block Comments inside script/style blocks
         if (in_script || in_style) && in_block_comment {
             if c == '*' && chars.peek() == Some(&'/') {
-                chars.next(); // Consume '/'
+                chars.next();
                 in_block_comment = false;
             }
             continue;
         }
 
-        // Initialize Block Comments inside script/style blocks
         if (in_script || in_style) && c == '/' && chars.peek() == Some(&'*') {
-            chars.next(); // Consume '*'
+            chars.next();
             in_block_comment = true;
             continue;
         }
 
-        // Handle JavaScript single-line comments
         if in_script && c == '/' && chars.peek() == Some(&'/') {
-            chars.next(); // Consume second '/'
+            chars.next();
             while let Some(next_c) = chars.next() {
                 if next_c == '\n' || next_c == '\r' {
                     break;
@@ -287,21 +334,18 @@ pub fn minify(html: &str) -> String {
             continue;
         }
 
-        // Verify genuine HTML Tag Boundaries
         let mut is_real_html_tag = false;
-        
+
         if c == '<' {
             if in_script || in_style {
                 if chars.peek() == Some(&'/') {
                     is_real_html_tag = true;
                 }
             } else if in_pre_code {
-                // Inside the code container, the ONLY tag allowed to break out 
-                // is the explicit closing container template layout sequence "</code></pre>"
                 if chars.peek() == Some(&'/') {
                     let mut lookahead = chars.clone();
-                    lookahead.next(); // Skip '/'
-                    
+                    lookahead.next();
+
                     let mut tag_name = String::new();
                     while let Some(nc) = lookahead.next() {
                         if nc.is_alphabetic() {
@@ -315,8 +359,7 @@ pub fn minify(html: &str) -> String {
                         }
                     }
 
-                    if tag_name.to_lowercase() == "code" {
-                        // Skip any optional layout whitespace tokens safely between tags
+                    if tag_name.eq_ignore_ascii_case("code") {
                         while let Some(&nc) = lookahead.peek() {
                             if nc.is_whitespace() {
                                 lookahead.next();
@@ -324,8 +367,7 @@ pub fn minify(html: &str) -> String {
                                 break;
                             }
                         }
-                        
-                        // Check if the next matching element block is strictly "</pre>"
+
                         if lookahead.next() == Some('<') && lookahead.next() == Some('/') {
                             let mut next_tag = String::new();
                             while let Some(nc) = lookahead.next() {
@@ -338,7 +380,7 @@ pub fn minify(html: &str) -> String {
                                     break;
                                 }
                             }
-                            if next_tag.to_lowercase() == "pre" {
+                            if next_tag.eq_ignore_ascii_case("pre") {
                                 is_real_html_tag = true;
                             }
                         }
@@ -349,28 +391,32 @@ pub fn minify(html: &str) -> String {
             }
         }
 
-        // Handle HTML Tags properly
         if is_real_html_tag {
-            // Detect and completely strip HTML comments (<!-- comment -->) only outside pre/code
-            if !in_pre_code && chars.peek() == Some(&'!') {
+            if !keep_comments && !in_pre_code && chars.peek() == Some(&'!') {
                 let mut lookahead = chars.clone();
-                lookahead.next(); // skip '!'
+                lookahead.next();
+
                 if lookahead.next() == Some('-') && lookahead.next() == Some('-') {
-                    chars.next(); // '!'
-                    chars.next(); // '-'
-                    chars.next(); // '-'
-                    
+                    chars.next();
+                    chars.next();
+                    chars.next();
+
                     while let Some(comment_c) = chars.next() {
                         if comment_c == '-' && chars.peek() == Some(&'-') {
                             let mut end_check = chars.clone();
-                            end_check.next(); // skip second '-'
+                            end_check.next();
                             if end_check.next() == Some('>') {
-                                chars.next(); // consume second '-'
-                                chars.next(); // consume '>'
+                                chars.next();
+                                chars.next();
                                 break;
                             }
                         }
                     }
+
+                    if !result.ends_with(char::is_whitespace) {
+                        result.push(' ');
+                    }
+                    last_was_whitespace = true;
                     continue;
                 }
             }
@@ -383,7 +429,6 @@ pub fn minify(html: &str) -> String {
                 tag_buffer.push(chars.next().unwrap());
             }
 
-            // Extract the full tag name safely
             let mut tag_name = String::new();
             while let Some(&next_c) = chars.peek() {
                 if next_c.is_alphabetic() {
@@ -400,7 +445,6 @@ pub fn minify(html: &str) -> String {
             let is_script_tag = tag_name_lower == "script";
             let is_style_tag = tag_name_lower == "style";
 
-            // Consume everything until the tag completely closes '>'
             while let Some(next_c) = chars.next() {
                 tag_buffer.push(next_c);
                 if next_c == '>' {
@@ -408,14 +452,12 @@ pub fn minify(html: &str) -> String {
                 }
             }
 
-            // Maintain state container boundaries securely
             if is_pre_tag {
                 in_pre = !is_closing;
             } else if is_code_tag {
                 in_code = !is_closing;
             }
 
-            // Toggle script/style state context based on opening or closing tags
             if !(in_pre && in_code) {
                 if is_script_tag {
                     in_script = !is_closing;
@@ -425,8 +467,8 @@ pub fn minify(html: &str) -> String {
             }
 
             result.push_str(&tag_buffer);
-            
-            if (is_pre_tag || is_code_tag) && (in_pre && in_code) {
+
+            if (is_pre_tag || is_code_tag) && in_pre && in_code {
                 while let Some(&next_c) = chars.peek() {
                     if next_c.is_whitespace() {
                         chars.next();
@@ -438,24 +480,27 @@ pub fn minify(html: &str) -> String {
             continue;
         }
 
-        // Handle content inside / outside target tags
         if in_pre && in_code {
-            if c == '<' {
-                result.push_str("&lt;");
-            } else if c == '>' {
-                result.push_str("&gt;");
-            } else if c == '&' {
-                result.push_str("&amp;");
-            } else {
-                result.push(c);
+            match c {
+                '<' => result.push_str("&lt;"),
+                '>' => result.push_str("&gt;"),
+                '&' => result.push_str("&amp;"),
+                _ => result.push(c),
             }
             last_was_whitespace = false;
         } else if in_script || in_style {
             if c.is_whitespace() {
                 if !last_was_whitespace {
-                    let syntax_symbols = if in_script { "{}:;(),=+-><!&|" } else { "{}:;(),>+" };
-                    let prev_is_symbol = result.chars().last().map_or(false, |p| syntax_symbols.contains(p));
-                    
+                    let syntax_symbols = if in_script {
+                        "{}:;(),=+-><!&|"
+                    } else {
+                        "{}:;(),>+"
+                    };
+                    let prev_is_symbol = result
+                        .chars()
+                        .last()
+                        .map_or(false, |p| syntax_symbols.contains(p));
+
                     let mut lookahead_chars = chars.clone();
                     let mut next_non_space = None;
                     while let Some(nc) = lookahead_chars.next() {
@@ -464,7 +509,8 @@ pub fn minify(html: &str) -> String {
                             break;
                         }
                     }
-                    let next_is_symbol = next_non_space.map_or(false, |n| syntax_symbols.contains(n));
+                    let next_is_symbol =
+                        next_non_space.map_or(false, |n| syntax_symbols.contains(n));
 
                     if !prev_is_symbol && !next_is_symbol && !result.is_empty() {
                         result.push(' ');
@@ -472,7 +518,11 @@ pub fn minify(html: &str) -> String {
                     last_was_whitespace = true;
                 }
             } else {
-                let syntax_symbols = if in_script { "{}:;(),=+-><!&|" } else { "{}:;(),>+" };
+                let syntax_symbols = if in_script {
+                    "{}:;(),=+-><!&|"
+                } else {
+                    "{}:;(),>+"
+                };
                 let current_is_symbol = syntax_symbols.contains(c);
 
                 if current_is_symbol && result.ends_with(' ') {
@@ -493,7 +543,6 @@ pub fn minify(html: &str) -> String {
         }
     }
 
-    // Strip terminal ending spaces
     while result.ends_with(' ') {
         result.pop();
     }

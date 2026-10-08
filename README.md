@@ -426,7 +426,26 @@ let minified = minify(raw_input);
 assert_eq!(minified, r#"<div> <div><span>copyright 2026</span> <a href="/">https://crates.io/crates/forge-rsx</a> </div></div>"#);
 ```
 
-##### 3. Preserving Formatted Syntax Blocks
+##### 3. 3. Compress a multi-line HTML block into a single line while keeping inline spaces and comments
+
+```rust
+use forge_rsx::minify_with_comments;
+
+let raw_input = r####"
+    <div>
+        <!-- Copyright -->
+        <div>
+            <span>copyright 2026</span>
+            <a href="/">https://crates.io/crates/forge-rsx</a>
+        </div>
+    </div>
+"####;
+
+let minified = minify_with_comments(raw_input);
+assert_eq!(minified, r#"<div> <!-- Copyright --><div><span>copyright 2026</span> <a href="/">https://crates.io/crates/forge-rsx</a> </div></div>"#);
+```
+
+##### 4. Preserving Formatted Syntax Blocks
 
 The utility automatically detects nested code structures and leaves structural text layouts inside `<pre>` and `<code>` blocks fully untouched:
 
