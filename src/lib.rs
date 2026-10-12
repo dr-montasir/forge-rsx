@@ -219,16 +219,28 @@ pub fn get_char(s: &str, index: usize) -> String {
 /// let minified = minify(raw_input);
 /// assert_eq!(minified, "<div> <h1>Hello World!</h1> </div>");
 ///
-/// // 2. Dangerous: Using single-line comments in frontend template attributes breaks code:
+/// // 2. Compress a multi-line HTML block into a single line while keeping inline spaces
+/// let raw_input = r####"
+///     <div>
+///         <div>
+///             <span>copyright 2026</span>
+///             <a href="/">https://crates.io/crates/forge-rsx</a>
+///         </div>
+///     </div>
+/// "####;
+/// let minified = minify(raw_input);
+/// assert_eq!(minified, r#"<div> <div><span>copyright 2026</span> <a href="/">https://crates.io/crates/forge-rsx</a> </div></div>"#);
+/// 
+/// // 3. Dangerous: Using single-line comments in frontend template attributes breaks code:
 /// let bad_alpine = r#"<div x-init="console.log('started'); // broken comment line "><p>Hidden</p></div>"#;
 /// // After collapsing whitespace, the rest of the HTML markup becomes part of the JavaScript comment!
 /// 
-/// // 3. Correct Framework Style: Use JavaScript block comments inside template attribute parameters:
+/// // 4. Correct Framework Style: Use JavaScript block comments inside template attribute parameters:
 /// let safe_alpine = r#"<div x-init="console.log('started'); /* safe block comment */ "><p>Visible</p></div>"#;
 /// let result_alpine = minify(safe_alpine);
 /// assert!(result_alpine.contains("<p>Visible</p>"));
 ///
-/// // 4. Preserve precise formatting inside pre and code tag blocks
+/// // 5. Preserve precise formatting inside pre and code tag blocks
 /// let code_input = r####"
 ///     <div>
 ///         <div>
