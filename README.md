@@ -1,6 +1,17 @@
-# forge-rsx
+<div align="center">
+  <br>
+  <a href="https://github.com/dr-montasir/forge-rsx" target="_blank">
+      <img src="https://raw.githubusercontent.com/dr-montasir/forge-rsx/refs/heads/main/logo.svg" width="100">
+  </a>
+  <br>
+  <h1>FORGE-RSX</h1>
+</div>
 
-`forge-rsx` is a Rust macro library for declarative, JSX-like HTML generation. It allows you to write HTML structures with embedded logic, attributes, nested tags, loops, and more, directly in Rust code with a concise syntax.
+> `forge-rsx` is a Rust macro library for declarative, JSX-like HTML generation. It allows you to write HTML structures with embedded logic, attributes, nested tags, loops, and more, directly in Rust code with a concise syntax.
+
+<div style="text-align: center;">
+  <a href="https://github.com/dr-montasir/forge-rsx"><img src="https://img.shields.io/badge/github-dr%20montasir%20/%20forge%20rsx%20-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="24" style="margin-top: 10px;" alt="github" /></a> <a href="https://crates.io/crates/forge-rsx"><img src="https://img.shields.io/crates/v/forge-rsx.svg?style=for-the-badge&color=fc8d62&logo=rust" height="24" style="margin-top: 10px;" alt="crates.io"></a> <a href="https://docs.rs/forge-rsx"><img src="https://img.shields.io/badge/docs.rs-forge%20rsx-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" height="24" style="margin-top: 10px;" alt="docs.rs"></a> <a href="https://choosealicense.com/licenses/mit"><img src="https://img.shields.io/badge/license-mit-4a98f7.svg?style=for-the-badge&labelColor=555555" height="24" style="margin-top: 10px;" alt="license"></a> <a href="https://crates.io/crates/forge-rsx" target="_blank"><img alt="downloads" src="https://img.shields.io/crates/d/forge-rsx.svg?style=for-the-badge&labelColor=555555&logo=&color=428600" height="22"></a>
+</div>
 
 ---
 

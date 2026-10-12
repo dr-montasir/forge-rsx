@@ -1,3 +1,5 @@
+#![doc(html_logo_url = "https://raw.githubusercontent.com/dr-montasir/forge-rsx/51197c89ba93e2b6a601ccd426399086516f836d/logo.svg")]
+
 #![doc = include_str!("../README.md")]
 
 /// ### Rules Module
