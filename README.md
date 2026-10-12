@@ -469,6 +469,27 @@ assert_eq!(
 );
 ```
 
+##### 5. Frontend Frameworks Safety (such as Alpine.js, HTMX, etc.)
+
+> [!WARNING]
+> **Do not use single-line JavaScript comments (`//`) inside raw template attributes.**
+> Since the minifier collapses structural layouts down into a single line, any trailing or inline `//` token will comment out the remaining contents of that HTML block, causing breaking bugs. 
+
+Always use standard JavaScript block comments (`/* ... */`) or extract heavy scripts into separate files instead:
+
+```rust
+use forge_rsx::minify;
+
+// ❌ DANGEROUS: Single-line comment comments out subsequent tags after minification
+let broken_alpine = r#"<div x-init="console.log('init'); // Single-line comment breaks here "><p>Hidden</p></div>"#;
+
+// 🟢 SAFE: Use JavaScript block comments inside HTML attribute scopes
+let safe_alpine = r#"<div x-init="console.log('init'); /* Safe block comment context */ "><p>Visible</p></div>"#;
+
+let result = minify(safe_alpine);
+assert!(result.contains("<p>Visible</p>"));
+```
+
 ---
 
 ## License

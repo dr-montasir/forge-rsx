@@ -195,6 +195,12 @@ pub fn get_char(s: &str, index: usize) -> String {
 /// The parsing engine tracks nested elements to ensure that all contents, text layouts, newlines, and 
 /// spaces residing inside `<pre>` and `<code>` tags are left completely untouched. 
 ///
+/// # Warning
+///
+/// **Do not use single-line JavaScript comments (`//`) inside frontend framework HTML attributes** (such as Alpine.js `x-init`, `x-data`, or Vue inline handlers). 
+/// Because this function compresses HTML down to a single continuous line, any `//` comment inside an attribute will accidentally comment out the rest of your HTML block, breaking compilation.
+/// Always use JavaScript block comments (`/* ... */`) or move complex script logic to external modules.
+///
 /// # Arguments
 ///
 /// * `html` - A raw, multi-line, or unstructured HTML string slice to be parsed and compressed.
@@ -213,19 +219,16 @@ pub fn get_char(s: &str, index: usize) -> String {
 /// let minified = minify(raw_input);
 /// assert_eq!(minified, "<div> <h1>Hello World!</h1> </div>");
 ///
-/// // 2. Compress a multi-line HTML block into a single line while keeping inline spaces
-/// let raw_input = r####"
-///     <div>
-///         <div>
-///             <span>copyright 2026</span>
-///             <a href="/">https://crates.io/crates/forge-rsx</a>
-///         </div>
-///     </div>
-/// "####;
-/// let minified = minify(raw_input);
-/// assert_eq!(minified, r#"<div> <div><span>copyright 2026</span> <a href="/">https://crates.io/crates/forge-rsx</a> </div></div>"#);
+/// // 2. Dangerous: Using single-line comments in frontend template attributes breaks code:
+/// let bad_alpine = r#"<div x-init="console.log('started'); // broken comment line "><p>Hidden</p></div>"#;
+/// // After collapsing whitespace, the rest of the HTML markup becomes part of the JavaScript comment!
+/// 
+/// // 3. Correct Framework Style: Use JavaScript block comments inside template attribute parameters:
+/// let safe_alpine = r#"<div x-init="console.log('started'); /* safe block comment */ "><p>Visible</p></div>"#;
+/// let result_alpine = minify(safe_alpine);
+/// assert!(result_alpine.contains("<p>Visible</p>"));
 ///
-/// // 3. Preserve precise formatting inside pre and code tag blocks
+/// // 4. Preserve precise formatting inside pre and code tag blocks
 /// let code_input = r####"
 ///     <div>
 ///         <div>
@@ -250,6 +253,12 @@ pub fn minify(html: &str) -> String {
 /// Removes unnecessary newlines, tabs, and redundant whitespace between elements.
 /// Whitespace inside `<pre>` and `<code>` blocks is preserved. Unlike [`minify`],
 /// this function retains HTML comments.
+///
+/// # Warning
+///
+/// **Do not use single-line JavaScript comments (`//`) inside frontend framework HTML attributes** (such as Alpine.js `x-init`, `x-data`, or Vue inline handlers). 
+/// Because this function compresses HTML down to a single continuous line, any `//` comment inside an attribute will accidentally comment out the rest of your HTML block, breaking compilation.
+/// Always use JavaScript block comments (`/* ... */`) or move complex script logic to external modules.
 ///
 /// # Arguments
 ///
