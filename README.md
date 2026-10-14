@@ -503,6 +503,82 @@ assert!(result.contains("<p>Visible</p>"));
 
 ---
 
+## Development vs. Production: Working with `<pre>` & `<code>`
+
+When building code blocks or developer documentation with `forge-rsx`, it is important to understand how the macro styling rules (`btfy2`, `btfy4`, etc.) interact with the runtime minifier functions (`minify`, `minify_with_comments`).
+
+### * During Development (Macro Layer)
+
+The macro indentation rules (`btfy0` through `btfy4` and `tabed`) are designed to organize the final layout string so the structural tree can be debugged easily.
+
+- **No Macro Escaping:** The macro **does not** modify or escape characters like `<`, `>`, or `&` into HTML entities at compile time. It keeps them as raw characters.
+- **Frontend Compatibility:** This behavior is intentional. If you use client-side syntax highlighters like **Highlight.js** or **Prism.js**, they often expect raw code formats inside code blocks to parse tokens correctly using JavaScript or CSS.
+
+### In Production (Minifier Layer)
+
+When your project is ready for production, you should pass your macro output string directly through the `minify` or `minify_with_comments` functions.
+
+```rust
+use forge_rsx::{rsx, minify};
+
+// Recommended Production Workflow (minify: lined, btfy2, btfy4, etc.)
+let raw_html = rsx!(lined, div { "..." });
+let production_html = forge_rsx::minify(&raw_html);
+```
+
+#### Full Usage Example with Code Blocks
+
+```rust
+use forge_rsx::{rsx, minify};
+
+fn main() {
+    let code_source = r##"fn main() {
+    	println!("<h1>Hello World!</h1>");
+    }"##;
+    
+    // 1. Generate structural HTML layout using the macro
+    let raw_html = rsx!(lined, div {
+        h2 { "Rust Example" }
+        pre { class: "code-demo__block",
+            code {
+                {code_source}
+            }
+        }
+    });
+
+    // 2. Compress and optimize for production in a single pass
+    let production_html = minify(&raw_html);
+    
+    // Hand over `production_html` to your web framework response!
+}
+```
+
+- **Automated Optimization:** The `minify_impl` engine automatically handles the transition for you. It safely tracks nested `<pre><code>` blocks, compresses whitespace properly, and escapes control characters (`<` to `<`, etc.) to prevent layout breaks.
+- **Flawless Integration:** Even after minification and character replacement, code boxes will still render beautifully on screen and remain fully compatible with syntax highlighters like **Highlight.js**.
+
+### Architectural Choice: Why Escaping Happens at the Function Level (Not the Macro)
+
+The choice to handle HTML escaping inside the function level rather than inside the `rsx!` macro rules during compilation maximizes runtime performance, ensures code flexibility, and prevents redundant character transformation loops.
+
+1. Avoiding Double-Escaping Redundancy
+
+   If the macro handles escaping at compile time, it transforms a character like `<` into the HTML entity `<`.
+   When that generated string is passed into a global utility like `minify` or `minify_with_comments` later, the minifier scans the entire string character-by-character. It encounters the standalone `&` symbol inside the already-escaped `<` and transforms it a second time, producing `&lt;`.
+
+   While some modern frontend engines handle this automatically, it introduces a duplicate parsing cycle. Keeping the macro layer raw guarantees that content translates **exactly once** at the function level without any redundant modifications.
+
+2. CPU and Runtime Performance
+
+   Declarative macros (`macro_rules!`) are highly optimized for structural layout token mapping. Forcing them to conditionally evaluate variables at runtime introduces unnecessary performance costs:
+
+   * **Repeated Allocations:** Using custom utility wrappers inside macro arms forces the CPU to constantly evaluate conditions (e.g., checking `if parent == "code"`) and repeatedly trigger runtime allocations (`String::with_capacity` and `format!`) on every single block component.
+   * **The "One-Pass" Optimization:** By relying entirely on `minify()` or `minify_with_comments()` for production builds, the server processes the entire page layout in **a single, sequential pass**. It cleans up spacing, compresses code, and escapes code blocks simultaneously inside a highly efficient loop, minimizing overall CPU usage per HTTP request.
+   * Frontend Independence
+
+3. Different frontend stacks treat code blocks differently. Keeping the macro layer lightweight and agnostic ensures that applications requiring raw, unescaped character outputs (for example, specific client-side JavaScript syntax engines or unique custom CSS setups) can use the macro on its own without being forced into an irreversible character-mapping pipeline.
+
+---
+
 ## License
 
 MIT License
